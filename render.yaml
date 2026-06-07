@@ -2,7 +2,7 @@ databases:
   - name: smallpractice-db
     databaseName: smallpractice
     user: smallpractice
-    plan: free
+    plan: starter
 
 services:
   - type: web
@@ -11,7 +11,7 @@ services:
     rootDir: backend
     buildCommand: pip install -r requirements.txt
     startCommand: alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port $PORT
-    plan: free
+    plan: starter
     envVars:
       - key: DATABASE_URL
         fromDatabase:
@@ -34,7 +34,7 @@ services:
     rootDir: frontend
     buildCommand: npm install && npm run build
     staticPublishPath: dist
-    plan: free
+    plan: starter
     envVars:
       - key: VITE_API_URL
         value: https://smallpractice-api.onrender.com

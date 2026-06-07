@@ -56,7 +56,8 @@ export function BookingModal({ onClose, prefillDate }: Props) {
     setError("");
     try {
       const result = await findNextAvailable(providerId, visitTypeId);
-      const local = new Date(result.start_time).toISOString().slice(0, 16);
+      const d = new Date(result.start_time);
+      const local = new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
       setStartTime(local);
     } catch {
       setError("No available slot found in the next 60 days.");
@@ -68,9 +69,10 @@ export function BookingModal({ onClose, prefillDate }: Props) {
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError("");
-    // Ensure start_time has seconds (datetime-local gives "YYYY-MM-DDTHH:MM" without them)
-    const normalizedStart = startTime.length === 16 ? `${startTime}:00` : startTime;
-    mutation.mutate({ provider_id: providerId, patient_uuid: patientUuid, visit_type_id: visitTypeId, start_time: normalizedStart });
+    // datetime-local gives local time with no tz — convert to UTC ISO so the backend stores
+    // the correct absolute time and FullCalendar renders it at the right local hour.
+    const utcStart = new Date(startTime).toISOString();
+    mutation.mutate({ provider_id: providerId, patient_uuid: patientUuid, visit_type_id: visitTypeId, start_time: utcStart });
   }
 
   return (

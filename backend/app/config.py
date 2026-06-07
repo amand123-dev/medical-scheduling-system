@@ -9,12 +9,12 @@ class Settings(BaseSettings):
 
     @model_validator(mode="after")
     def _fix_db_url(self) -> "Settings":
-        if self.database_url.startswith("postgresql://"):
-            object.__setattr__(
-                self,
-                "database_url",
-                self.database_url.replace("postgresql://", "postgresql+asyncpg://", 1),
-            )
+        url = self.database_url
+        if url.startswith("postgresql://"):
+            url = url.replace("postgresql://", "postgresql+asyncpg://", 1)
+        if "sslmode=require" in url:
+            url = url.replace("sslmode=require", "ssl=require")
+        object.__setattr__(self, "database_url", url)
         return self
     secret_key: str = "dev-secret-key-change-in-production"
     algorithm: str = "HS256"

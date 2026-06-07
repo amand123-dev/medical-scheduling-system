@@ -1,0 +1,302 @@
+{
+  "76f06822-47eb-40eb-8e38-a4626863fb82": {
+    "age": 32,
+    "gender": 0,
+    "scholarship": 0,
+    "hipertension": 0,
+    "diabetes": 0,
+    "alcoholism": 0,
+    "handcap": 0,
+    "_note": "Synthetic demo data only \u2014 Faker-generated, not real PII"
+  },
+  "0380cdfb-668a-4500-b97a-499e13eb6d33": {
+    "age": 29,
+    "gender": 1,
+    "scholarship": 1,
+    "hipertension": 1,
+    "diabetes": 0,
+    "alcoholism": 0,
+    "handcap": 0,
+    "_note": "Synthetic demo data only \u2014 Faker-generated, not real PII"
+  },
+  "893593dc-b0b8-408e-b928-5ad8d01ffe19": {
+    "age": 71,
+    "gender": 0,
+    "scholarship": 0,
+    "hipertension": 0,
+    "diabetes": 0,
+    "alcoholism": 0,
+    "handcap": 0,
+    "_note": "Synthetic demo data only \u2014 Faker-generated, not real PII"
+  },
+  "bf58e73c-a5c0-4475-89fe-a44b043e8e34": {
+    "age": 72,
+    "gender": 1,
+    "scholarship": 0,
+    "hipertension": 0,
+    "diabetes": 0,
+    "alcoholism": 0,
+    "handcap": 0,
+    "_note": "Synthetic demo data only \u2014 Faker-generated, not real PII"
+  },
+  "443a9485-702f-48b8-ab7a-c1e9afb094a0": {
+    "age": 63,
+    "gender": 1,
+    "scholarship": 0,
+    "hipertension": 0,
+    "diabetes": 0,
+    "alcoholism": 0,
+    "handcap": 0,
+    "_note": "Synthetic demo data only \u2014 Faker-generated, not real PII"
+  },
+  "909e28e5-d7af-4592-8dfc-de49f7522195": {
+    "age": 66,
+    "gender": 0,
+    "scholarship": 0,
+    "hipertension": 0,
+    "diabetes": 0,
+    "alcoholism": 0,
+    "handcap": 0,
+    "_note": "Synthetic demo data only \u2014 Faker-generated, not real PII"
+  },
+  "94ee9c5c-b54b-47e1-a111-e627a21eeef3": {
+    "age": 26,
+    "gender": 0,
+    "scholarship": 0,
+    "hipertension": 0,
+    "diabetes": 0,
+    "alcoholism": 0,
+    "handcap": 0,
+    "_note": "Synthetic demo data only \u2014 Faker-generated, not real PII"
+  },
+  "cf25242b-bcbc-49d1-bbee-6543f9614c64": {
+    "age": 66,
+    "gender": 1,
+    "scholarship": 0,
+    "hipertension": 0,
+    "diabetes": 0,
+    "alcoholism": 0,
+    "handcap": 0,
+    "_note": "Synthetic demo data only \u2014 Faker-generated, not real PII"
+  },
+  "8d6990ac-d211-46cf-b77e-f670e7864c71": {
+    "age": 27,
+    "gender": 0,
+    "scholarship": 0,
+    "hipertension": 0,
+    "diabetes": 0,
+    "alcoholism": 0,
+    "handcap": 0,
+    "_note": "Synthetic demo data only \u2014 Faker-generated, not real PII"
+  },
+  "7e84adb3-9701-47fe-8d6b-5ae956338050": {
+    "age": 46,
+    "gender": 1,
+    "scholarship": 0,
+    "hipertension": 0,
+    "diabetes": 0,
+    "alcoholism": 0,
+    "handcap": 0,
+    "_note": "Synthetic demo data only \u2014 Faker-generated, not real PII"
+  },
+  "9022c4cc-9e14-4e9b-8547-0b38d31bb7a5": {
+    "age": 52,
+    "gender": 0,
+    "scholarship": 0,
+    "hipertension": 0,
+    "diabetes": 0,
+    "alcoholism": 0,
+    "handcap": 0,
+    "_note": "Synthetic demo data only \u2014 Faker-generated, not real PII"
+  },
+  "a11b5557-04ad-42e4-86b8-2360fffb49e8": {
+    "age": 68,
+    "gender": 1,
+    "scholarship": 0,
+    "hipertension": 1,
+    "diabetes": 0,
+    "alcoholism": 0,
+    "handcap": 0,
+    "_note": "Synthetic demo data only \u2014 Faker-generated, not real PII"
+  },
+  "3edb338d-d420-4fa5-9d43-c7c7fbeb3af0": {
+    "age": 72,
+    "gender": 1,
+    "scholarship": 0,
+    "hipertension": 0,
+    "diabetes": 0,
+    "alcoholism": 0,
+    "handcap": 0,
+    "_note": "Synthetic demo data only \u2014 Faker-generated, not real PII"
+  },
+  "ee3b606a-7a37-4bc4-89d3-1f6e9a442ea8": {
+    "age": 32,
+    "gender": 0,
+    "scholarship": 0,
+    "hipertension": 0,
+    "diabetes": 0,
+    "alcoholism": 0,
+    "handcap": 0,
+    "_note": "Synthetic demo data only \u2014 Faker-generated, not real PII"
+  },
+  "43ab34ba-39a8-4c31-aad7-6a1c7fa19c8b": {
+    "age": 77,
+    "gender": 1,
+    "scholarship": 0,
+    "hipertension": 0,
+    "diabetes": 1,
+    "alcoholism": 0,
+    "handcap": 0,
+    "_note": "Synthetic demo data only \u2014 Faker-generated, not real PII"
+  },
+  "3d1b1174-fca1-4566-ba65-89b390f7f21c": {
+    "age": 52,
+    "gender": 1,
+    "scholarship": 0,
+    "hipertension": 0,
+    "diabetes": 0,
+    "alcoholism": 0,
+    "handcap": 0,
+    "_note": "Synthetic demo data only \u2014 Faker-generated, not real PII"
+  },
+  "975bb2dd-71c0-49f8-b3ad-d2374f2bc534": {
+    "age": 51,
+    "gender": 0,
+    "scholarship": 0,
+    "hipertension": 1,
+    "diabetes": 0,
+    "alcoholism": 0,
+    "handcap": 0,
+    "_note": "Synthetic demo data only \u2014 Faker-generated, not real PII"
+  },
+  "27f9c956-ade9-4ff9-a692-ebebf15a62b3": {
+    "age": 43,
+    "gender": 0,
+    "scholarship": 0,
+    "hipertension": 1,
+    "diabetes": 0,
+    "alcoholism": 0,
+    "handcap": 0,
+    "_note": "Synthetic demo data only \u2014 Faker-generated, not real PII"
+  },
+  "85e2eb2f-c132-481d-9d8a-a8079ad73c06": {
+    "age": 59,
+    "gender": 1,
+    "scholarship": 1,
+    "hipertension": 0,
+    "diabetes": 0,
+    "alcoholism": 0,
+    "handcap": 0,
+    "_note": "Synthetic demo data only \u2014 Faker-generated, not real PII"
+  },
+  "a235e7e3-7123-4d96-879e-e6ff87f2e17a": {
+    "age": 25,
+    "gender": 0,
+    "scholarship": 0,
+    "hipertension": 0,
+    "diabetes": 1,
+    "alcoholism": 0,
+    "handcap": 0,
+    "_note": "Synthetic demo data only \u2014 Faker-generated, not real PII"
+  },
+  "b0656ddf-924c-4a5f-8a93-971adecf9a1c": {
+    "age": 34,
+    "gender": 0,
+    "scholarship": 0,
+    "hipertension": 0,
+    "diabetes": 0,
+    "alcoholism": 0,
+    "handcap": 0,
+    "_note": "Synthetic demo data only \u2014 Faker-generated, not real PII"
+  },
+  "4e33faea-8e51-486d-9b6b-37b9028dbb2d": {
+    "age": 45,
+    "gender": 0,
+    "scholarship": 0,
+    "hipertension": 0,
+    "diabetes": 0,
+    "alcoholism": 0,
+    "handcap": 0,
+    "_note": "Synthetic demo data only \u2014 Faker-generated, not real PII"
+  },
+  "89c8be8a-b20e-45be-b0de-e8ff6294b922": {
+    "age": 75,
+    "gender": 0,
+    "scholarship": 0,
+    "hipertension": 1,
+    "diabetes": 1,
+    "alcoholism": 0,
+    "handcap": 0,
+    "_note": "Synthetic demo data only \u2014 Faker-generated, not real PII"
+  },
+  "ee6e0834-08c7-4788-8b52-38f4e712c915": {
+    "age": 18,
+    "gender": 0,
+    "scholarship": 0,
+    "hipertension": 1,
+    "diabetes": 1,
+    "alcoholism": 0,
+    "handcap": 0,
+    "_note": "Synthetic demo data only \u2014 Faker-generated, not real PII"
+  },
+  "6e94614b-ed4d-431c-a171-aafa0077db66": {
+    "age": 83,
+    "gender": 0,
+    "scholarship": 0,
+    "hipertension": 0,
+    "diabetes": 0,
+    "alcoholism": 0,
+    "handcap": 0,
+    "_note": "Synthetic demo data only \u2014 Faker-generated, not real PII"
+  },
+  "da39e8f2-79ed-4b51-913f-5f966f80b99a": {
+    "age": 78,
+    "gender": 0,
+    "scholarship": 0,
+    "hipertension": 0,
+    "diabetes": 0,
+    "alcoholism": 0,
+    "handcap": 0,
+    "_note": "Synthetic demo data only \u2014 Faker-generated, not real PII"
+  },
+  "403a6cab-38c2-4db3-b171-55a946baa27d": {
+    "age": 72,
+    "gender": 1,
+    "scholarship": 0,
+    "hipertension": 0,
+    "diabetes": 0,
+    "alcoholism": 0,
+    "handcap": 0,
+    "_note": "Synthetic demo data only \u2014 Faker-generated, not real PII"
+  },
+  "a2adde8c-c433-4e06-a8c0-bcf00240e21f": {
+    "age": 69,
+    "gender": 1,
+    "scholarship": 0,
+    "hipertension": 1,
+    "diabetes": 0,
+    "alcoholism": 0,
+    "handcap": 0,
+    "_note": "Synthetic demo data only \u2014 Faker-generated, not real PII"
+  },
+  "e2180d43-ef86-4024-85f1-2582850a9ef0": {
+    "age": 41,
+    "gender": 1,
+    "scholarship": 0,
+    "hipertension": 0,
+    "diabetes": 1,
+    "alcoholism": 0,
+    "handcap": 0,
+    "_note": "Synthetic demo data only \u2014 Faker-generated, not real PII"
+  },
+  "eb4ef119-66f0-4b6d-8a37-4a620527cbf9": {
+    "age": 30,
+    "gender": 0,
+    "scholarship": 0,
+    "hipertension": 0,
+    "diabetes": 1,
+    "alcoholism": 0,
+    "handcap": 0,
+    "_note": "Synthetic demo data only \u2014 Faker-generated, not real PII"
+  }
+}

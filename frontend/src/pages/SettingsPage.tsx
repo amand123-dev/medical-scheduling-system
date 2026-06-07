@@ -1,0 +1,235 @@
+import { useEffect, useState } from "react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import client from "../api/client";
+import { fetchBlocks, createBlock, deleteBlock } from "../api/appointments";
+import { fetchProviders } from "../api/appointments";
+import type { PracticeSettings } from "../types";
+
+const fetchSettings = () => client.get<PracticeSettings>("/settings").then((r) => r.data);
+const patchSettings = (body: Partial<PracticeSettings>) =>
+  client.patch<PracticeSettings>("/settings", body).then((r) => r.data);
+
+type Tab = "scheduler" | "blocked";
+
+export function SettingsPage() {
+  const qc = useQueryClient();
+  const [tab, setTab] = useState<Tab>("scheduler");
+
+  // --- Scheduler settings ---
+  const { data, isLoading } = useQuery({ queryKey: ["settings"], queryFn: fetchSettings });
+  const mutation = useMutation({
+    mutationFn: patchSettings,
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["settings"] }),
+  });
+  const [form, setForm] = useState<Partial<PracticeSettings>>({});
+  useEffect(() => { if (data) setForm(data); }, [data]);
+
+  function handleChange(key: keyof PracticeSettings, value: string) {
+    const num = key === "work_start_hour" || key === "work_end_hour" || key === "hold_window_minutes"
+      ? parseInt(value) || 0
+      : parseFloat(value) || 0;
+    setForm((f) => ({ ...f, [key]: num }));
+  }
+
+  function handleSave(e: React.FormEvent) {
+    e.preventDefault();
+    mutation.mutate(form);
+  }
+
+  // --- Blocked days ---
+  const { data: providers = [] } = useQuery({ queryKey: ["providers"], queryFn: fetchProviders });
+  const { data: blocks = [], isLoading: blocksLoading } = useQuery({
+    queryKey: ["schedule-blocks"],
+    queryFn: () => fetchBlocks(),
+  });
+  const createBlockMut = useMutation({
+    mutationFn: createBlock,
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["schedule-blocks"] }); setBlockForm(emptyBlock()); },
+  });
+  const deleteBlockMut = useMutation({
+    mutationFn: deleteBlock,
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["schedule-blocks"] }),
+  });
+
+  const emptyBlock = () => ({ provider_id: "", start_date: "", end_date: "", reason: "" });
+  const [blockForm, setBlockForm] = useState(emptyBlock());
+  const [blockError, setBlockError] = useState("");
+
+  function handleBlockSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    setBlockError("");
+    if (!blockForm.start_date || !blockForm.end_date) { setBlockError("Start and end date are required."); return; }
+    if (blockForm.start_date > blockForm.end_date) { setBlockError("End date must be on or after start date."); return; }
+    createBlockMut.mutate({
+      provider_id: blockForm.provider_id || null,
+      start_date: blockForm.start_date,
+      end_date: blockForm.end_date,
+      reason: blockForm.reason || null,
+    });
+  }
+
+  const schedulerFields: Array<{ key: keyof PracticeSettings; label: string; desc: string; step: string }> = [
+    { key: "matcher_w1", label: "Waitlist weight: priority (w1)", desc: "Weight for patient priority in backfill scoring", step: "0.1" },
+    { key: "matcher_w2", label: "Waitlist weight: wait time (w2)", desc: "Weight for how long the patient has been waiting", step: "0.1" },
+    { key: "matcher_w3", label: "Waitlist weight: decline risk (w3)", desc: "Penalty for patients who have declined previous offers", step: "0.1" },
+    { key: "hold_window_minutes", label: "Offer hold window (minutes)", desc: "How long a waitlist offer is held before cascading", step: "5" },
+    { key: "risk_low_threshold", label: "No-show risk: low threshold", desc: "Scores below this are low risk", step: "0.05" },
+    { key: "risk_high_threshold", label: "No-show risk: high threshold", desc: "Scores at or above this are high risk", step: "0.05" },
+    { key: "work_start_hour", label: "Working hours: start (hour)", desc: "Earliest bookable hour (24h). Used by find-next-available.", step: "1" },
+    { key: "work_end_hour", label: "Working hours: end (hour)", desc: "Latest bookable hour (24h). Slots that end after this are skipped.", step: "1" },
+    { key: "buffer_minutes", label: "Buffer between appointments (minutes)", desc: "Dead time after each appointment — prevents back-to-back scheduling.", step: "5" },
+  ];
+
+  if (isLoading) return <div className="p-6 text-gray-400">Loading…</div>;
+
+  return (
+    <div className="p-6 max-w-2xl mx-auto">
+      <h1 className="text-2xl font-semibold text-gray-900 mb-2">Practice Settings</h1>
+      <p className="text-sm text-gray-500 mb-5">Configure scheduling engine parameters. Changes take effect immediately.</p>
+
+      {/* Tab bar */}
+      <div className="flex border-b mb-6 text-sm">
+        <button
+          onClick={() => setTab("scheduler")}
+          className={`px-4 py-2 font-medium ${tab === "scheduler" ? "border-b-2 border-blue-600 text-blue-600" : "text-gray-500 hover:text-gray-700"}`}
+        >
+          Scheduler
+        </button>
+        <button
+          onClick={() => setTab("blocked")}
+          className={`px-4 py-2 font-medium ${tab === "blocked" ? "border-b-2 border-blue-600 text-blue-600" : "text-gray-500 hover:text-gray-700"}`}
+        >
+          Blocked Days
+        </button>
+      </div>
+
+      {tab === "scheduler" && (
+        <form onSubmit={handleSave} className="space-y-4">
+          {schedulerFields.map(({ key, label, desc, step }) => (
+            <div key={key} className="bg-white rounded-xl shadow p-4">
+              <label className="block text-sm font-medium text-gray-800 mb-0.5">{label}</label>
+              <p className="text-xs text-gray-400 mb-2">{desc}</p>
+              <input
+                type="number"
+                step={step}
+                value={form[key] ?? ""}
+                onChange={(e) => handleChange(key, e.target.value)}
+                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
+              />
+            </div>
+          ))}
+          <div className="flex items-center gap-3">
+            <button
+              type="submit"
+              disabled={mutation.isPending}
+              className="bg-blue-600 text-white px-5 py-2 rounded-lg text-sm font-medium hover:bg-blue-700 disabled:opacity-50"
+            >
+              {mutation.isPending ? "Saving…" : "Save settings"}
+            </button>
+            {mutation.isSuccess && <span className="text-green-600 text-sm">Saved</span>}
+          </div>
+        </form>
+      )}
+
+      {tab === "blocked" && (
+        <div className="space-y-6">
+          {/* Add block form */}
+          <div className="bg-white rounded-xl shadow p-5">
+            <h2 className="text-base font-semibold text-gray-800 mb-3">Add block</h2>
+            <form onSubmit={handleBlockSubmit} className="space-y-3">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Provider (leave blank for clinic-wide)</label>
+                <select
+                  value={blockForm.provider_id}
+                  onChange={(e) => setBlockForm((f) => ({ ...f, provider_id: e.target.value }))}
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
+                >
+                  <option value="">Clinic-wide (all providers)</option>
+                  {providers.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+                </select>
+              </div>
+              <div className="flex gap-3">
+                <div className="flex-1">
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Start date</label>
+                  <input
+                    type="date"
+                    value={blockForm.start_date}
+                    onChange={(e) => setBlockForm((f) => ({ ...f, start_date: e.target.value }))}
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
+                    required
+                  />
+                </div>
+                <div className="flex-1">
+                  <label className="block text-sm font-medium text-gray-700 mb-1">End date</label>
+                  <input
+                    type="date"
+                    value={blockForm.end_date}
+                    onChange={(e) => setBlockForm((f) => ({ ...f, end_date: e.target.value }))}
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
+                    required
+                  />
+                </div>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Reason (optional)</label>
+                <input
+                  type="text"
+                  value={blockForm.reason}
+                  onChange={(e) => setBlockForm((f) => ({ ...f, reason: e.target.value }))}
+                  placeholder="e.g. Holiday, Conference, Vacation"
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
+                />
+              </div>
+              {blockError && <p className="text-red-600 text-sm">{blockError}</p>}
+              <button
+                type="submit"
+                disabled={createBlockMut.isPending}
+                className="bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-blue-700 disabled:opacity-50"
+              >
+                {createBlockMut.isPending ? "Adding…" : "Add block"}
+              </button>
+            </form>
+          </div>
+
+          {/* Existing blocks list */}
+          <div>
+            <h2 className="text-base font-semibold text-gray-800 mb-3">Current blocks</h2>
+            {blocksLoading ? (
+              <p className="text-sm text-gray-400">Loading…</p>
+            ) : blocks.length === 0 ? (
+              <p className="text-sm text-gray-400">No blocked days configured.</p>
+            ) : (
+              <div className="space-y-2">
+                {blocks.map((b) => {
+                  const providerName = b.provider_id
+                    ? providers.find((p) => p.id === b.provider_id)?.name ?? "Unknown provider"
+                    : "Clinic-wide";
+                  return (
+                    <div key={b.id} className="bg-white rounded-xl shadow px-4 py-3 flex items-center justify-between gap-3">
+                      <div>
+                        <p className="text-sm font-medium text-gray-800">
+                          {b.start_date === b.end_date ? b.start_date : `${b.start_date} → ${b.end_date}`}
+                        </p>
+                        <p className="text-xs text-gray-500">
+                          {providerName}{b.reason ? ` · ${b.reason}` : ""}
+                        </p>
+                      </div>
+                      <button
+                        onClick={() => deleteBlockMut.mutate(b.id)}
+                        disabled={deleteBlockMut.isPending}
+                        className="text-xs text-red-600 hover:text-red-800 disabled:opacity-50 shrink-0"
+                        aria-label="Remove block"
+                      >
+                        Remove
+                      </button>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}

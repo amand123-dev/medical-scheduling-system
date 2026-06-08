@@ -18,6 +18,7 @@ from app.scheduling.models import (
 from app.scheduling.schemas import (
     AppointmentCreate,
     AppointmentResponse,
+    WaitlistEntryCreate,
     WaitlistEntryResponse,
 )
 
@@ -108,6 +109,23 @@ async def cancel_my_appointment(
 
 
 # ── Waitlist ──────────────────────────────────────────────────────────────────
+
+
+@router.post("/waitlist", response_model=WaitlistEntryResponse, status_code=201)
+async def join_waitlist(
+    body: WaitlistEntryCreate,
+    current: PatientAccount = Depends(get_current_patient),
+    session: AsyncSession = Depends(get_session),
+):
+    safe_body = WaitlistEntryCreate(
+        patient_uuid=current.patient_uuid,
+        provider_id=body.provider_id,
+        visit_type_id=body.visit_type_id,
+        earliest_window=body.earliest_window,
+        latest_window=body.latest_window,
+        priority=0,
+    )
+    return await crud.create_waitlist_entry(session, safe_body)
 
 
 @router.get("/waitlist", response_model=list[WaitlistEntryResponse])

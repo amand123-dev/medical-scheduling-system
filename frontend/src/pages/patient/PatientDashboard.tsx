@@ -7,6 +7,8 @@ import {
   fetchMyAppointments,
   fetchMyWaitlist,
   fetchPatientMe,
+  fetchProvidersPublic,
+  fetchVisitTypesPublic,
 } from "../../api/patient";
 import type { Appointment, WaitlistEntry } from "../../types";
 
@@ -27,10 +29,14 @@ function statusBadge(status: string) {
 
 function AppointmentCard({
   appt,
+  providerName,
+  visitTypeName,
   onCancel,
   cancelling,
 }: {
   appt: Appointment;
+  providerName: string;
+  visitTypeName: string;
   onCancel: () => void;
   cancelling: boolean;
 }) {
@@ -40,6 +46,9 @@ function AppointmentCard({
       <div>
         <p className="font-medium text-gray-900 text-sm">{format(dt, "EEEE, MMM d, yyyy")}</p>
         <p className="text-gray-500 text-sm">{format(dt, "h:mm a")}</p>
+        <p className="text-xs text-gray-400 mt-0.5">
+          {providerName} · {visitTypeName}
+        </p>
       </div>
       <div className="flex items-center gap-3">
         <span className={statusBadge(appt.status)}>{appt.status.replace("_", " ")}</span>
@@ -59,11 +68,15 @@ function AppointmentCard({
 
 function WaitlistCard({
   entry,
+  providerName,
+  visitTypeName,
   onAccept,
   onDecline,
   busy,
 }: {
   entry: WaitlistEntry;
+  providerName: string;
+  visitTypeName: string;
   onAccept: () => void;
   onDecline: () => void;
   busy: boolean;
@@ -75,17 +88,21 @@ function WaitlistCard({
     <div
       className={`p-4 border rounded-xl bg-white ${isOffered ? "border-blue-300 bg-blue-50" : "border-gray-200"}`}
     >
-      <div className="flex items-center justify-between mb-2">
+      <div className="flex items-center justify-between mb-1">
         <p className="text-sm font-medium text-gray-900">
-          {isOffered && slotStart
-            ? `Slot offered: ${format(slotStart, "MMM d 'at' h:mm a")}`
-            : "On waitlist"}
+          {providerName} · {visitTypeName}
         </p>
         <span className={statusBadge(entry.status)}>{entry.status}</span>
       </div>
-      <p className="text-xs text-gray-500 mb-3">
-        Requested {format(parseISO(entry.requested_at), "MMM d, yyyy")}
-      </p>
+      {isOffered && slotStart ? (
+        <p className="text-sm text-blue-700 font-medium mb-3">
+          Slot offered: {format(slotStart, "MMM d 'at' h:mm a")}
+        </p>
+      ) : (
+        <p className="text-xs text-gray-400 mb-3">
+          Requested {format(parseISO(entry.requested_at), "MMM d, yyyy")}
+        </p>
+      )}
       {isOffered && (
         <div className="flex gap-2">
           <button
@@ -110,6 +127,7 @@ function WaitlistCard({
 
 export function PatientDashboard() {
   const qc = useQueryClient();
+
   const { data: me } = useQuery({ queryKey: ["patient-me"], queryFn: fetchPatientMe });
   const { data: appointments = [], isLoading: apptLoading } = useQuery({
     queryKey: ["my-appointments"],
@@ -119,12 +137,22 @@ export function PatientDashboard() {
     queryKey: ["my-waitlist"],
     queryFn: fetchMyWaitlist,
   });
+  const { data: providers = [] } = useQuery({
+    queryKey: ["providers-public"],
+    queryFn: fetchProvidersPublic,
+  });
+  const { data: visitTypes = [] } = useQuery({
+    queryKey: ["visit-types-public"],
+    queryFn: fetchVisitTypesPublic,
+  });
+
+  const providerMap = Object.fromEntries(providers.map((p) => [p.id, p.name]));
+  const visitTypeMap = Object.fromEntries(visitTypes.map((vt) => [vt.id, vt.name]));
 
   const cancelMut = useMutation({
     mutationFn: cancelMyAppointment,
     onSuccess: () => qc.invalidateQueries({ queryKey: ["my-appointments"] }),
   });
-
   const acceptMut = useMutation({
     mutationFn: acceptMyOffer,
     onSuccess: () => {
@@ -132,7 +160,6 @@ export function PatientDashboard() {
       qc.invalidateQueries({ queryKey: ["my-appointments"] });
     },
   });
-
   const declineMut = useMutation({
     mutationFn: declineMyOffer,
     onSuccess: () => qc.invalidateQueries({ queryKey: ["my-waitlist"] }),
@@ -147,17 +174,13 @@ export function PatientDashboard() {
     .sort((a, b) => b.start_time.localeCompare(a.start_time))
     .slice(0, 5);
 
-  const activeWaitlist = waitlist.filter((w) =>
-    ["waiting", "offered"].includes(w.status)
-  );
+  const activeWaitlist = waitlist.filter((w) => ["waiting", "offered"].includes(w.status));
 
   return (
     <div className="max-w-2xl mx-auto px-4 py-8 space-y-8">
       {me && (
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">
-            Welcome, {me.first_name}
-          </h1>
+          <h1 className="text-2xl font-bold text-gray-900">Welcome, {me.first_name}</h1>
           <p className="text-gray-500 text-sm mt-0.5">{me.email}</p>
         </div>
       )}
@@ -166,10 +189,7 @@ export function PatientDashboard() {
       <section>
         <div className="flex items-center justify-between mb-3">
           <h2 className="text-base font-semibold text-gray-900">Upcoming appointments</h2>
-          <a
-            href="/portal/book"
-            className="text-sm text-blue-600 hover:underline font-medium"
-          >
+          <a href="/portal/book" className="text-sm text-blue-600 hover:underline font-medium">
             Book new +
           </a>
         </div>
@@ -188,6 +208,8 @@ export function PatientDashboard() {
               <AppointmentCard
                 key={a.id}
                 appt={a}
+                providerName={providerMap[a.provider_id] ?? "Provider"}
+                visitTypeName={visitTypeMap[a.visit_type_id] ?? "Visit"}
                 onCancel={() => cancelMut.mutate(a.id)}
                 cancelling={cancelMut.isPending && cancelMut.variables === a.id}
               />
@@ -208,6 +230,8 @@ export function PatientDashboard() {
                 <WaitlistCard
                   key={w.id}
                   entry={w}
+                  providerName={providerMap[w.provider_id] ?? "Provider"}
+                  visitTypeName={visitTypeMap[w.visit_type_id] ?? "Visit"}
                   onAccept={() => acceptMut.mutate(w.id)}
                   onDecline={() => declineMut.mutate(w.id)}
                   busy={
@@ -230,7 +254,9 @@ export function PatientDashboard() {
               <AppointmentCard
                 key={a.id}
                 appt={a}
-                onCancel={() => cancelMut.mutate(a.id)}
+                providerName={providerMap[a.provider_id] ?? "Provider"}
+                visitTypeName={visitTypeMap[a.visit_type_id] ?? "Visit"}
+                onCancel={() => {}}
                 cancelling={false}
               />
             ))}

@@ -43,6 +43,9 @@ export const cancelMyAppointment = (id: string) =>
 export const fetchMyWaitlist = () =>
   client.get<WaitlistEntry[]>("/patient/waitlist").then((r) => r.data);
 
+export const joinWaitlist = (body: { provider_id: string; visit_type_id: string }) =>
+  client.post<WaitlistEntry>("/patient/waitlist", body).then((r) => r.data);
+
 export const acceptMyOffer = (entryId: string) =>
   client.patch<Appointment>(`/patient/waitlist/${entryId}/accept`).then((r) => r.data);
 

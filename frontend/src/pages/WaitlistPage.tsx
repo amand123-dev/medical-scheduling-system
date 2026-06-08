@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { fetchWaitlist, acceptOffer, declineOffer, offerSlot } from "../api/waitlist";
 import { fetchProviders, fetchVisitTypes } from "../api/appointments";
+import { useAuthStore } from "../store/auth";
 import { PatientUUID } from "../components/shared/PatientUUID";
 import type { WaitlistEntry } from "../types";
 
@@ -155,11 +156,13 @@ const DEFAULT_HOLD_MINUTES = 30;
 // ── Main page ─────────────────────────────────────────────────────────────────
 export function WaitlistPage() {
   const qc = useQueryClient();
+  const { role, providerId: myProviderId } = useAuthStore();
+  const isProvider = role === "provider";
   const [simulateEntry, setSimulateEntry] = useState<WaitlistEntry | null>(null);
 
   const { data: entries = [], isLoading } = useQuery({
-    queryKey: ["waitlist"],
-    queryFn: () => fetchWaitlist(),
+    queryKey: ["waitlist", isProvider ? myProviderId : null],
+    queryFn: () => fetchWaitlist(isProvider && myProviderId ? myProviderId : undefined),
     refetchInterval: 30_000,
   });
   const { data: providers = [] } = useQuery({ queryKey: ["providers"], queryFn: fetchProviders });

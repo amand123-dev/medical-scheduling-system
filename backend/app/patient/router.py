@@ -18,6 +18,8 @@ from app.scheduling.models import (
 from app.scheduling.schemas import (
     AppointmentCreate,
     AppointmentResponse,
+    ProviderResponse,
+    VisitTypeResponse,
     WaitlistEntryCreate,
     WaitlistEntryResponse,
 )
@@ -26,6 +28,19 @@ router = APIRouter(prefix="/patient", tags=["patient"])
 
 # Public router for token-based confirmation (no auth required)
 public_router = APIRouter(prefix="/waitlist-confirm", tags=["patient-confirm"])
+
+
+# ── Public lookup endpoints (no auth — patients need these to book) ────────────
+
+
+@router.get("/providers", response_model=list[ProviderResponse])
+async def patient_list_providers(session: AsyncSession = Depends(get_session)):
+    return await crud.list_providers(session)
+
+
+@router.get("/visit-types", response_model=list[VisitTypeResponse])
+async def patient_list_visit_types(session: AsyncSession = Depends(get_session)):
+    return await crud.list_visit_types(session)
 
 
 # ── Identity ──────────────────────────────────────────────────────────────────

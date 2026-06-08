@@ -62,12 +62,11 @@ export const declineWaitlistToken = (token: string) =>
     .get<{ status: string; message: string }>(`/waitlist-confirm/${token}/decline`)
     .then((r) => r.data);
 
-// Reuse existing public endpoints
 export const fetchProvidersPublic = () =>
-  client.get<Provider[]>("/providers").then((r) => r.data);
+  client.get<Provider[]>("/patient/providers").then((r) => r.data);
 
 export const fetchVisitTypesPublic = () =>
-  client.get<VisitType[]>("/visit-types").then((r) => r.data);
+  client.get<VisitType[]>("/patient/visit-types").then((r) => r.data);
 
 export const findNextAvailablePublic = (
   providerId: string,

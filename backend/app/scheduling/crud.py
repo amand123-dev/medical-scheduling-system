@@ -429,46 +429,72 @@ async def find_next_available(
 
     settings = await get_or_create_settings(session)
     duration = timedelta(minutes=vt.duration_minutes)
-    step = timedelta(minutes=vt.duration_minutes + settings.buffer_minutes)
     now = after or datetime.now(UTC)
+    horizon = now + timedelta(days=60)
 
-    # Convert local work hours to UTC. tz_offset_minutes is JS getTimezoneOffset()
-    # (positive = west of UTC, e.g. 240 for UTC-4). local = UTC - offset, so
-    # UTC_hour = local_hour + offset_hours.
     offset_hours = tz_offset_minutes // 60
     utc_start = max(0, min(23, settings.work_start_hour + offset_hours))
     utc_end = max(1, min(24, settings.work_end_hour + offset_hours))
 
+    # Prefetch all schedule blocks for this provider in one query
+    blocks_result = await session.execute(
+        select(ScheduleBlock).where(
+            and_(
+                or_(
+                    ScheduleBlock.provider_id == provider_id,
+                    ScheduleBlock.provider_id.is_(None),
+                ),
+                ScheduleBlock.end_date >= now.date(),
+                ScheduleBlock.start_date <= horizon.date(),
+            )
+        )
+    )
+    blocks = blocks_result.scalars().all()
+
+    def _is_blocked(dt: date) -> bool:
+        return any(b.start_date <= dt <= b.end_date for b in blocks)
+
+    # Prefetch all active appointments for this provider in one query
+    buffer = timedelta(minutes=settings.buffer_minutes)
+    appts_result = await session.execute(
+        select(Appointment).where(
+            and_(
+                Appointment.provider_id == provider_id,
+                Appointment.status != AppointmentStatus.cancelled,
+                Appointment.start_time < horizon,
+                Appointment.end_time > now,
+            )
+        )
+    )
+    appts = [(a.start_time, a.end_time) for a in appts_result.scalars().all()]
+
+    def _has_overlap_local(start: datetime, end: datetime) -> bool:
+        return any(a_start < end and a_end + buffer > start for a_start, a_end in appts)
+
     # Round up to next slot boundary
-    candidate = now.replace(second=0, microsecond=0)
     step_mins = vt.duration_minutes + settings.buffer_minutes
+    candidate = now.replace(second=0, microsecond=0)
     remainder = candidate.minute % step_mins if step_mins else 0
     if remainder:
         candidate += timedelta(minutes=step_mins - remainder)
     elif now.second or now.microsecond:
-        candidate += step
+        candidate += timedelta(minutes=step_mins)
 
     def _next_day_start(dt: datetime) -> datetime:
-        return datetime(
-            dt.year, dt.month, dt.day, utc_start, 0, tzinfo=dt.tzinfo
-        ) + timedelta(days=1)
+        return datetime(dt.year, dt.month, dt.day, utc_start, 0, tzinfo=dt.tzinfo) + timedelta(days=1)
 
-    for _ in range(60 * 24):  # cap search at 60 days worth of slots
+    for _ in range(60 * 24):
         slot_date = candidate.date()
 
-        # Skip blocked dates
-        if await is_date_blocked(session, provider_id, slot_date):
+        if _is_blocked(slot_date):
             candidate = _next_day_start(candidate)
             continue
 
-        # Push forward to start of working hours if too early
         if candidate.hour < utc_start:
             candidate = candidate.replace(hour=utc_start, minute=0)
             continue
 
         end_candidate = candidate + duration
-
-        # If end crosses midnight OR exceeds work_end_hour, move to next day
         if (
             end_candidate.date() > slot_date
             or end_candidate.hour > utc_end
@@ -477,17 +503,10 @@ async def find_next_available(
             candidate = _next_day_start(candidate)
             continue
 
-        # Check for appointment overlap (respecting buffer)
-        if not await _has_overlap(
-            session,
-            provider_id,
-            candidate,
-            end_candidate,
-            buffer_minutes=settings.buffer_minutes,
-        ):
+        if not _has_overlap_local(candidate, end_candidate):
             return candidate
 
-        candidate += step
+        candidate += timedelta(minutes=step_mins)
 
     return None
 

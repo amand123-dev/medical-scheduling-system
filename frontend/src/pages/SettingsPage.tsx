@@ -44,7 +44,11 @@ export function SettingsPage() {
   });
   const createBlockMut = useMutation({
     mutationFn: createBlock,
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ["schedule-blocks"] }); setBlockForm(emptyBlock()); },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["schedule-blocks"] }); setBlockForm(emptyBlock()); setBlockError(""); },
+    onError: (err: unknown) => {
+      const msg = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail;
+      setBlockError(msg ?? "Failed to add block — please try again.");
+    },
   });
   const deleteBlockMut = useMutation({
     mutationFn: deleteBlock,
@@ -127,6 +131,7 @@ export function SettingsPage() {
               {mutation.isPending ? "Saving…" : "Save settings"}
             </button>
             {mutation.isSuccess && <span className="text-green-600 text-sm">Saved</span>}
+            {mutation.isError && <span className="text-red-600 text-sm">Save failed — please try again.</span>}
           </div>
         </form>
       )}

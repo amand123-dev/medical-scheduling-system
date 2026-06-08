@@ -13,6 +13,7 @@ export function getToken() {
 
 const client = axios.create({
   baseURL: import.meta.env.VITE_API_URL ?? "/api",
+  timeout: 30000,
 });
 
 client.interceptors.request.use((config) => {

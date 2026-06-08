@@ -50,6 +50,9 @@ export const createBlock = (body: { provider_id?: string | null; start_date: str
 
 export const deleteBlock = (id: string) => client.delete(`/schedule-blocks/${id}`);
 
+export const createBlocksBulk = (items: Array<{ provider_id: null; start_date: string; end_date: string; reason: string }>) =>
+  client.post<{ added: number }>("/schedule-blocks/bulk", { items }).then((r) => r.data);
+
 export const findNextAvailable = (providerId: string, visitTypeId: string, after?: string) =>
   client
     .get<NextAvailable>("/appointments/next-available", {

@@ -36,6 +36,7 @@ from app.scheduling.schemas import (
     ProviderResponse,
     ReminderLogResponse,
     RiskResponse,
+    ScheduleBlockBulkCreate,
     ScheduleBlockCreate,
     ScheduleBlockResponse,
     VisitTypeCreate,
@@ -452,6 +453,15 @@ async def create_schedule_block(
     _user: StaffUser = Depends(require_role(StaffRole.admin, StaffRole.front_desk)),
 ):
     return await crud.create_schedule_block(session, body)
+
+
+@router.post("/schedule-blocks/bulk", status_code=201)
+async def create_schedule_blocks_bulk(
+    body: ScheduleBlockBulkCreate,
+    session: AsyncSession = Depends(get_session),
+    _user: StaffUser = Depends(require_role(StaffRole.admin, StaffRole.front_desk)),
+):
+    return await crud.create_schedule_blocks_bulk(session, body.items)
 
 
 @router.delete("/schedule-blocks/{block_id}", status_code=204)

@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import client from "../api/client";
-import { fetchBlocks, createBlock, deleteBlock } from "../api/appointments";
+import { fetchBlocks, createBlock, createBlocksBulk, deleteBlock } from "../api/appointments";
 import { fetchProviders } from "../api/appointments";
 import type { PracticeSettings } from "../types";
 
@@ -55,6 +55,13 @@ export function SettingsPage() {
     onSuccess: () => qc.invalidateQueries({ queryKey: ["schedule-blocks"] }),
   });
 
+  const bulkMut = useMutation({
+    mutationFn: createBlocksBulk,
+    onSuccess: (data) => { qc.invalidateQueries({ queryKey: ["schedule-blocks"] }); setBulkMsg(`Added ${data.added} block(s).`); },
+    onError: () => setBulkMsg("Failed — please try again."),
+  });
+  const [bulkMsg, setBulkMsg] = useState("");
+
   const emptyBlock = () => ({ provider_id: "", start_date: "", end_date: "", reason: "" });
   const [blockForm, setBlockForm] = useState(emptyBlock());
   const [blockError, setBlockError] = useState("");
@@ -70,6 +77,67 @@ export function SettingsPage() {
       end_date: blockForm.end_date,
       reason: blockForm.reason || null,
     });
+  }
+
+  function fmtDate(d: Date): string {
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+  }
+
+  function generateWeekends(startYear: number, endYear: number) {
+    const items: Array<{ provider_id: null; start_date: string; end_date: string; reason: string }> = [];
+    const d = new Date(startYear, 0, 1);
+    const end = new Date(endYear, 11, 31);
+    while (d.getDay() !== 6) d.setDate(d.getDate() + 1);
+    while (d <= end) {
+      const sat = fmtDate(d);
+      const sun = new Date(d); sun.setDate(sun.getDate() + 1);
+      items.push({ provider_id: null, start_date: sat, end_date: sun <= end ? fmtDate(sun) : sat, reason: "Weekend" });
+      d.setDate(d.getDate() + 7);
+    }
+    return items;
+  }
+
+  function generateFederalHolidays(year: number) {
+    function nthWeekday(y: number, month: number, weekday: number, n: number): Date {
+      const d = new Date(y, month, 1); let count = 0;
+      while (true) { if (d.getDay() === weekday && ++count === n) return new Date(d); d.setDate(d.getDate() + 1); }
+    }
+    function lastMonday(y: number, month: number): Date {
+      const d = new Date(y, month + 1, 0);
+      while (d.getDay() !== 1) d.setDate(d.getDate() - 1);
+      return d;
+    }
+    function obs(d: Date): Date {
+      if (d.getDay() === 6) return new Date(d.getFullYear(), d.getMonth(), d.getDate() - 1);
+      if (d.getDay() === 0) return new Date(d.getFullYear(), d.getMonth(), d.getDate() + 1);
+      return d;
+    }
+    const holidays = [
+      { d: obs(new Date(year, 0, 1)),    name: "New Year's Day" },
+      { d: nthWeekday(year, 0, 1, 3),    name: "Martin Luther King Jr. Day" },
+      { d: nthWeekday(year, 1, 1, 3),    name: "Presidents' Day" },
+      { d: lastMonday(year, 4),          name: "Memorial Day" },
+      { d: obs(new Date(year, 5, 19)),   name: "Juneteenth" },
+      { d: obs(new Date(year, 6, 4)),    name: "Independence Day" },
+      { d: nthWeekday(year, 8, 1, 1),   name: "Labor Day" },
+      { d: nthWeekday(year, 9, 1, 2),   name: "Columbus Day" },
+      { d: obs(new Date(year, 10, 11)),  name: "Veterans Day" },
+      { d: nthWeekday(year, 10, 4, 4),  name: "Thanksgiving Day" },
+      { d: obs(new Date(year, 11, 25)),  name: "Christmas Day" },
+    ];
+    return holidays.map(({ d, name }) => ({ provider_id: null as null, start_date: fmtDate(d), end_date: fmtDate(d), reason: name }));
+  }
+
+  function handleBulkWeekends() {
+    setBulkMsg("");
+    const year = new Date().getFullYear();
+    bulkMut.mutate(generateWeekends(year, year + 1));
+  }
+
+  function handleBulkHolidays() {
+    setBulkMsg("");
+    const year = new Date().getFullYear();
+    bulkMut.mutate([...generateFederalHolidays(year), ...generateFederalHolidays(year + 1)]);
   }
 
   const schedulerFields: Array<{ key: keyof PracticeSettings; label: string; desc: string; step: string }> = [
@@ -194,6 +262,33 @@ export function SettingsPage() {
                 {createBlockMut.isPending ? "Adding…" : "Add block"}
               </button>
             </form>
+          </div>
+
+          {/* Quick add */}
+          <div className="bg-white rounded-xl shadow p-5">
+            <h2 className="text-base font-semibold text-gray-800 mb-1">Quick add</h2>
+            <p className="text-xs text-gray-400 mb-3">Bulk-add clinic-wide blocks for the current and next calendar year. Skips dates already blocked.</p>
+            <div className="flex flex-wrap gap-3">
+              <button
+                onClick={handleBulkWeekends}
+                disabled={bulkMut.isPending}
+                className="bg-gray-700 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-gray-800 disabled:opacity-50"
+              >
+                {bulkMut.isPending ? "Adding…" : "Block all weekends"}
+              </button>
+              <button
+                onClick={handleBulkHolidays}
+                disabled={bulkMut.isPending}
+                className="bg-gray-700 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-gray-800 disabled:opacity-50"
+              >
+                {bulkMut.isPending ? "Adding…" : "Block federal holidays (US)"}
+              </button>
+            </div>
+            {bulkMsg && (
+              <p className={`mt-2 text-sm ${bulkMsg.startsWith("Failed") ? "text-red-600" : "text-green-600"}`}>
+                {bulkMsg}
+              </p>
+            )}
           </div>
 
           {/* Existing blocks list */}

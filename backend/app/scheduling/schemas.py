@@ -114,6 +114,10 @@ class ScheduleBlockCreate(BaseModel):
     reason: str | None = None
 
 
+class ScheduleBlockBulkCreate(BaseModel):
+    items: list[ScheduleBlockCreate]
+
+
 class ScheduleBlockResponse(BaseModel):
     id: uuid.UUID
     provider_id: uuid.UUID | None

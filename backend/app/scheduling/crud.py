@@ -291,6 +291,32 @@ async def create_schedule_block(session: AsyncSession, data: ScheduleBlockCreate
     return block
 
 
+async def create_schedule_blocks_bulk(
+    session: AsyncSession, items: list[ScheduleBlockCreate]
+) -> dict:
+    existing_q = await session.execute(
+        select(ScheduleBlock.start_date, ScheduleBlock.provider_id)
+    )
+    existing = {(row.provider_id, row.start_date) for row in existing_q}
+
+    added = 0
+    for item in items:
+        key = (item.provider_id, item.start_date)
+        if key not in existing:
+            session.add(ScheduleBlock(
+                id=uuid.uuid4(),
+                provider_id=item.provider_id,
+                start_date=item.start_date,
+                end_date=item.end_date,
+                reason=item.reason,
+            ))
+            added += 1
+
+    if added > 0:
+        await session.commit()
+    return {"added": added}
+
+
 async def list_schedule_blocks(
     session: AsyncSession, provider_id: uuid.UUID | None = None
 ) -> list[ScheduleBlock]:

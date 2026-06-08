@@ -188,11 +188,12 @@ async def _backfill_slot(
     candidates.sort(key=lambda t: t[0], reverse=True)
     best_entry = candidates[0][1]
 
-    # Make the offer
+    # Make the offer — generate token for SMS-style accept/decline links
     best_entry.status = WaitlistStatus.offered
     best_entry.offered_at = now
     best_entry.offered_slot_start = slot_start
     best_entry.offered_slot_end = slot_end
+    best_entry.offer_token = uuid.uuid4()
     await session.commit()
     await session.refresh(best_entry)
     return best_entry

@@ -5,7 +5,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth.jwt import decode_token
 from app.database import get_session
-from app.scheduling.models import StaffRole, StaffUser
+from app.scheduling.models import PatientAccount, StaffRole, StaffUser
 
 bearer = HTTPBearer()
 
@@ -34,3 +34,25 @@ def require_role(*roles: StaffRole):
         return user
 
     return _check
+
+
+async def get_current_patient(
+    credentials: HTTPAuthorizationCredentials = Depends(bearer),
+    session: AsyncSession = Depends(get_session),
+) -> PatientAccount:
+    try:
+        payload = decode_token(credentials.credentials)
+    except ValueError:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token")
+
+    if payload.get("role") != "patient":
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Patient token required")
+
+    patient_uuid = payload.get("sub")
+    result = await session.execute(
+        select(PatientAccount).where(PatientAccount.patient_uuid == patient_uuid)
+    )
+    account = result.scalar_one_or_none()
+    if account is None:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Account not found")
+    return account

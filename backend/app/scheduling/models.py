@@ -152,6 +152,9 @@ class WaitlistEntry(Base):
     offered_slot_end: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True
     )
+    offer_token: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), nullable=True, unique=True
+    )
 
     provider: Mapped["Provider"] = relationship(back_populates="waitlist_entries")
     visit_type: Mapped["VisitType"] = relationship(back_populates="waitlist_entries")
@@ -204,3 +207,14 @@ class PracticeSettings(Base):
     work_start_hour: Mapped[int] = mapped_column(Integer, default=8)
     work_end_hour: Mapped[int] = mapped_column(Integer, default=17)
     buffer_minutes: Mapped[int] = mapped_column(Integer, default=0)
+
+
+class PatientAccount(Base):
+    __tablename__ = "patient_account"
+    __table_args__ = {"schema": "operational"}
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    patient_uuid: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), unique=True)
+    email: Mapped[str] = mapped_column(String(255), unique=True)
+    hashed_password: Mapped[str] = mapped_column(String(255))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())

@@ -87,10 +87,13 @@ async def list_appointments(
     session: AsyncSession,
     provider_id: uuid.UUID | None = None,
     date: datetime | None = None,
+    patient_uuid: uuid.UUID | None = None,
 ) -> list[Appointment]:
     q = select(Appointment)
     if provider_id:
         q = q.where(Appointment.provider_id == provider_id)
+    if patient_uuid:
+        q = q.where(Appointment.patient_uuid == patient_uuid)
     if date:
         day_start = date.replace(hour=0, minute=0, second=0, microsecond=0)
         day_end = day_start + timedelta(days=1)
@@ -223,10 +226,13 @@ async def list_waitlist(
     session: AsyncSession,
     provider_id: uuid.UUID | None = None,
     status: WaitlistStatus | None = None,
+    patient_uuid: uuid.UUID | None = None,
 ) -> list[WaitlistEntry]:
     q = select(WaitlistEntry)
     if provider_id:
         q = q.where(WaitlistEntry.provider_id == provider_id)
+    if patient_uuid:
+        q = q.where(WaitlistEntry.patient_uuid == patient_uuid)
     if status:
         q = q.where(WaitlistEntry.status == status)
     result = await session.execute(q)

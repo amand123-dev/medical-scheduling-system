@@ -1,5 +1,6 @@
 import { BrowserRouter, Link, Navigate, Route, Routes, useLocation } from "react-router-dom";
 import { useAuthStore } from "./store/auth";
+import { usePatientAuthStore } from "./store/patientAuth";
 import { LoginPage } from "./pages/LoginPage";
 import { CalendarPage } from "./pages/CalendarPage";
 import { WaitlistPage } from "./pages/WaitlistPage";
@@ -7,6 +8,11 @@ import { DashboardPage } from "./pages/DashboardPage";
 import { SettingsPage } from "./pages/SettingsPage";
 import { AuditLogPage } from "./pages/AuditLogPage";
 import { OutreachLogPage } from "./pages/OutreachLogPage";
+import { PatientLoginPage } from "./pages/patient/PatientLoginPage";
+import { PatientRegisterPage } from "./pages/patient/PatientRegisterPage";
+import { PatientDashboard } from "./pages/patient/PatientDashboard";
+import { PatientBookPage } from "./pages/patient/PatientBookPage";
+import { WaitlistConfirmPage } from "./pages/WaitlistConfirmPage";
 import type { StaffRole } from "./types";
 
 function NavLink({ to, children }: { to: string; children: React.ReactNode }) {
@@ -27,6 +33,50 @@ function RequireRole({ allowed, children }: { allowed: StaffRole[]; children: Re
   const role = useAuthStore((s) => s.role);
   if (role && !allowed.includes(role)) return <Navigate to="/" replace />;
   return <>{children}</>;
+}
+
+function RequirePatient({ children }: { children: React.ReactNode }) {
+  const isAuthenticated = usePatientAuthStore((s) => s.isAuthenticated);
+  if (!isAuthenticated) return <Navigate to="/portal/login" replace />;
+  return <>{children}</>;
+}
+
+function PatientLayout() {
+  const { isAuthenticated, email, logout } = usePatientAuthStore();
+  const { pathname } = useLocation();
+
+  if (!isAuthenticated) return <Navigate to="/portal/login" replace />;
+
+  return (
+    <div className="min-h-screen bg-blue-50">
+      <nav className="bg-white border-b border-gray-200 px-6 py-3 flex items-center gap-6">
+        <span className="font-semibold text-blue-700 text-sm mr-2">Patient Portal</span>
+        <Link
+          to="/portal/dashboard"
+          className={`px-3 py-2 rounded-lg text-sm font-medium transition-colors ${pathname === "/portal/dashboard" ? "bg-blue-100 text-blue-700" : "text-gray-600 hover:text-gray-900 hover:bg-gray-100"}`}
+        >
+          My Appointments
+        </Link>
+        <Link
+          to="/portal/book"
+          className={`px-3 py-2 rounded-lg text-sm font-medium transition-colors ${pathname === "/portal/book" ? "bg-blue-100 text-blue-700" : "text-gray-600 hover:text-gray-900 hover:bg-gray-100"}`}
+        >
+          Book
+        </Link>
+        <div className="ml-auto flex items-center gap-3 text-sm text-gray-500">
+          <span>{email}</span>
+          <span className="text-xs px-2 py-0.5 rounded font-medium bg-blue-100 text-blue-700">patient</span>
+          <button onClick={logout} className="text-gray-400 hover:text-red-600">Sign out</button>
+        </div>
+      </nav>
+      <main>
+        <Routes>
+          <Route path="dashboard" element={<RequirePatient><PatientDashboard /></RequirePatient>} />
+          <Route path="book" element={<RequirePatient><PatientBookPage /></RequirePatient>} />
+        </Routes>
+      </main>
+    </div>
+  );
 }
 
 function Layout() {
@@ -93,6 +143,10 @@ export default function App() {
     <BrowserRouter>
       <Routes>
         <Route path="/login" element={<LoginPage />} />
+        <Route path="/portal/login" element={<PatientLoginPage />} />
+        <Route path="/portal/register" element={<PatientRegisterPage />} />
+        <Route path="/portal/*" element={<PatientLayout />} />
+        <Route path="/waitlist-confirm/:token" element={<WaitlistConfirmPage />} />
         <Route path="/*" element={<Layout />} />
       </Routes>
     </BrowserRouter>

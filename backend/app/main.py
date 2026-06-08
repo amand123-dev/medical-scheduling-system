@@ -1,8 +1,11 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+from app.auth.patient_router import router as patient_auth_router
 from app.auth.router import router as auth_router
 from app.identity.router import router as identity_router
+from app.patient.router import public_router as waitlist_confirm_router
+from app.patient.router import router as patient_router
 from app.scheduling.router import router as scheduling_router
 
 app = FastAPI(
@@ -20,8 +23,11 @@ app.add_middleware(
 )
 
 app.include_router(auth_router)
+app.include_router(patient_auth_router)
 app.include_router(identity_router)
 app.include_router(scheduling_router)
+app.include_router(patient_router)
+app.include_router(waitlist_confirm_router)
 
 
 @app.get("/health")

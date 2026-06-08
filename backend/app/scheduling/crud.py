@@ -421,6 +421,7 @@ async def find_next_available(
     provider_id: uuid.UUID,
     visit_type_id: uuid.UUID,
     after: datetime | None = None,
+    tz_offset_minutes: int = 0,
 ) -> datetime | None:
     vt = await get_visit_type(session, visit_type_id)
     if vt is None:
@@ -430,6 +431,13 @@ async def find_next_available(
     duration = timedelta(minutes=vt.duration_minutes)
     step = timedelta(minutes=vt.duration_minutes + settings.buffer_minutes)
     now = after or datetime.now(UTC)
+
+    # Convert local work hours to UTC. tz_offset_minutes is JS getTimezoneOffset()
+    # (positive = west of UTC, e.g. 240 for UTC-4). local = UTC - offset, so
+    # UTC_hour = local_hour + offset_hours.
+    offset_hours = tz_offset_minutes // 60
+    utc_start = max(0, min(23, settings.work_start_hour + offset_hours))
+    utc_end = max(1, min(24, settings.work_end_hour + offset_hours))
 
     # Round up to next slot boundary
     candidate = now.replace(second=0, microsecond=0)
@@ -442,7 +450,7 @@ async def find_next_available(
 
     def _next_day_start(dt: datetime) -> datetime:
         return datetime(
-            dt.year, dt.month, dt.day, settings.work_start_hour, 0, tzinfo=dt.tzinfo
+            dt.year, dt.month, dt.day, utc_start, 0, tzinfo=dt.tzinfo
         ) + timedelta(days=1)
 
     for _ in range(60 * 24):  # cap search at 60 days worth of slots
@@ -454,8 +462,8 @@ async def find_next_available(
             continue
 
         # Push forward to start of working hours if too early
-        if candidate.hour < settings.work_start_hour:
-            candidate = candidate.replace(hour=settings.work_start_hour, minute=0)
+        if candidate.hour < utc_start:
+            candidate = candidate.replace(hour=utc_start, minute=0)
             continue
 
         end_candidate = candidate + duration
@@ -463,8 +471,8 @@ async def find_next_available(
         # If end crosses midnight OR exceeds work_end_hour, move to next day
         if (
             end_candidate.date() > slot_date
-            or end_candidate.hour > settings.work_end_hour
-            or (end_candidate.hour == settings.work_end_hour and end_candidate.minute > 0)
+            or end_candidate.hour > utc_end
+            or (end_candidate.hour == utc_end and end_candidate.minute > 0)
         ):
             candidate = _next_day_start(candidate)
             continue

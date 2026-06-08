@@ -485,10 +485,11 @@ async def next_available(
     provider_id: uuid.UUID = Query(...),
     visit_type_id: uuid.UUID = Query(...),
     after: datetime | None = Query(None),
+    tz_offset: int = Query(0),  # JS getTimezoneOffset() minutes, positive = west of UTC
     session: AsyncSession = Depends(get_session),
     _user: StaffUser = Depends(get_current_user),
 ):
-    start = await crud.find_next_available(session, provider_id, visit_type_id, after)
+    start = await crud.find_next_available(session, provider_id, visit_type_id, after, tz_offset)
     if start is None:
         raise HTTPException(status_code=404, detail="No available slot found in the next 60 days")
     vt = await crud.get_visit_type(session, visit_type_id)

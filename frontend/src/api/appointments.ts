@@ -53,6 +53,11 @@ export const deleteBlock = (id: string) => client.delete(`/schedule-blocks/${id}
 export const findNextAvailable = (providerId: string, visitTypeId: string, after?: string) =>
   client
     .get<NextAvailable>("/appointments/next-available", {
-      params: { provider_id: providerId, visit_type_id: visitTypeId, after },
+      params: {
+        provider_id: providerId,
+        visit_type_id: visitTypeId,
+        after,
+        tz_offset: new Date().getTimezoneOffset(),
+      },
     })
     .then((r) => r.data);

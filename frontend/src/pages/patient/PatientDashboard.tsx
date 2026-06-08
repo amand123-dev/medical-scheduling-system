@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { format, parseISO } from "date-fns";
+import { Link } from "react-router-dom";
 import {
   acceptMyOffer,
   cancelMyAppointment,
@@ -189,18 +190,18 @@ export function PatientDashboard() {
       <section>
         <div className="flex items-center justify-between mb-3">
           <h2 className="text-base font-semibold text-gray-900">Upcoming appointments</h2>
-          <a href="/portal/book" className="text-sm text-blue-600 hover:underline font-medium">
+          <Link to="/portal/book" className="text-sm text-blue-600 hover:underline font-medium">
             Book new +
-          </a>
+          </Link>
         </div>
         {apptLoading ? (
           <p className="text-sm text-gray-400">Loading…</p>
         ) : upcoming.length === 0 ? (
           <p className="text-sm text-gray-500 bg-gray-50 rounded-xl p-4 text-center">
             No upcoming appointments.{" "}
-            <a href="/portal/book" className="text-blue-600 hover:underline">
+            <Link to="/portal/book" className="text-blue-600 hover:underline">
               Book one now.
-            </a>
+            </Link>
           </p>
         ) : (
           <div className="space-y-3">

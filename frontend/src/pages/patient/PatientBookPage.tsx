@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { format, parseISO } from "date-fns";
 import { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import {
   bookMyAppointment,
   fetchProvidersPublic,
@@ -79,12 +79,12 @@ export function PatientBookPage() {
           <p className="text-sm text-gray-500 mb-6">
             We'll notify you when a slot opens up. You can accept or decline from your dashboard.
           </p>
-          <a
-            href="/portal/dashboard"
+          <Link
+            to="/portal/dashboard"
             className="inline-block bg-blue-600 text-white rounded-lg px-5 py-2 text-sm font-medium hover:bg-blue-700"
           >
             Back to dashboard
-          </a>
+          </Link>
         </div>
       </div>
     );

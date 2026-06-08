@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { useParams, useSearchParams } from "react-router-dom";
+import { Link, useParams, useSearchParams } from "react-router-dom";
 import { confirmWaitlistToken, declineWaitlistToken } from "../api/patient";
 
 type State = "loading" | "success" | "declined" | "error";
@@ -48,12 +48,12 @@ export function WaitlistConfirmPage() {
         <div className={`text-5xl mb-4 font-bold ${color}`}>{icon}</div>
         <h1 className={`text-xl font-bold mb-2 ${color}`}>{heading}</h1>
         {message && <p className="text-sm text-gray-500">{message}</p>}
-        <a
-          href="/portal/login"
+        <Link
+          to="/portal/login"
           className="mt-6 inline-block text-sm text-blue-600 hover:underline"
         >
           Sign in to patient portal
-        </a>
+        </Link>
       </div>
     </div>
   );

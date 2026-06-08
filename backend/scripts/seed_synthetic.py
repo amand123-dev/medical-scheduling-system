@@ -142,7 +142,9 @@ async def seed():
         # 55 past: 48 completed, 7 no_show, 0 cancelled  →  fill=48/(48+10)=82.8%
         # 10 future scheduled                             →  no_show=7/(48+7)=12.7%
         print("Seeding past appointments (48 completed, 7 no-show)...")
-        now = datetime.now(UTC)
+        # Use local timezone so seeded appointment hours look realistic in the
+        # browser (8 AM local → stored as UTC equivalent → displayed as 8 AM local).
+        now = datetime.now().astimezone()
         booked_slots: set[tuple[str, int, int]] = set()  # (provider_id, day_offset, hour)
 
         def pick_slot(provider_id: str, max_past: int = 29) -> tuple[int, int] | None:

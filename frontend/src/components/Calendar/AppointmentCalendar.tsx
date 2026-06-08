@@ -64,15 +64,20 @@ export function AppointmentCalendar({
     extendedProps: { appointment: a },
   }));
 
-  const blockEvents = blocks.map((b) => ({
-    id: `block-${b.id}`,
-    title: b.reason ? `Blocked: ${b.reason}` : b.provider_id ? "Provider blocked" : "Clinic closed",
-    start: b.start_date,
-    end: b.end_date,
-    display: "background" as const,
-    backgroundColor: "#fca5a5",
-    allDay: true,
-  }));
+  const blockEvents = blocks.map((b) => {
+    // FullCalendar end is exclusive — add 1 day so the last blocked day is fully highlighted
+    const endExclusive = new Date(b.end_date + "T00:00:00");
+    endExclusive.setDate(endExclusive.getDate() + 1);
+    return {
+      id: `block-${b.id}`,
+      title: b.reason ? `Blocked: ${b.reason}` : b.provider_id ? "Provider blocked" : "Clinic closed",
+      start: b.start_date,
+      end: endExclusive.toISOString().slice(0, 10),
+      display: "background" as const,
+      backgroundColor: "#fca5a5",
+      allDay: true,
+    };
+  });
 
   return (
     <div className="bg-white rounded-xl shadow p-4">

@@ -82,6 +82,11 @@ export function LoginPage() {
           </div>
           <p className="text-xs text-gray-400 text-center mt-2">Portfolio demo — synthetic data only.</p>
         </div>
+        <div className="mt-4 text-center">
+          <a href="/portal/login" className="text-sm text-blue-600 hover:underline">
+            Patient portal →
+          </a>
+        </div>
       </div>
     </div>
   );

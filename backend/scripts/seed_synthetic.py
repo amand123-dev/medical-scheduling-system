@@ -71,6 +71,11 @@ async def seed():
     session_factory = async_sessionmaker(engine, expire_on_commit=False)
 
     async with session_factory() as session:
+        print("Clearing existing data...")
+        await session.execute(text("TRUNCATE operational.reminder_log, operational.waitlist_entry, operational.appointment, operational.schedule_block, operational.visit_type, operational.provider, operational.staff_user, operational.practice_settings RESTART IDENTITY CASCADE"))
+        await session.execute(text("TRUNCATE identity.identity_access_log, identity.patient_identity RESTART IDENTITY CASCADE"))
+        await session.commit()
+
         print("Seeding providers...")
         providers = []
         for p in PROVIDERS:

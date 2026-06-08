@@ -8,6 +8,9 @@ export interface Provider {
   name: string;
   specialty: string | null;
   is_active: boolean;
+  work_days: string | null;
+  work_start_hour: number | null;
+  work_end_hour: number | null;
 }
 
 export interface VisitType {

@@ -34,6 +34,7 @@ from app.scheduling.schemas import (
     PracticeSettingsUpdate,
     ProviderCreate,
     ProviderResponse,
+    ProviderUpdate,
     ReminderLogResponse,
     RiskResponse,
     ScheduleBlockBulkCreate,
@@ -66,6 +67,19 @@ async def create_provider(
     _user: StaffUser = Depends(require_role(StaffRole.admin)),
 ):
     return await crud.create_provider(session, body)
+
+
+@router.patch("/providers/{provider_id}", response_model=ProviderResponse)
+async def update_provider(
+    provider_id: uuid.UUID,
+    body: ProviderUpdate,
+    session: AsyncSession = Depends(get_session),
+    _user: StaffUser = Depends(require_role(StaffRole.admin)),
+):
+    provider = await crud.update_provider(session, provider_id, body)
+    if provider is None:
+        raise HTTPException(status_code=404, detail="Provider not found")
+    return provider
 
 
 # --- Visit Types ---

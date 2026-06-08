@@ -62,15 +62,25 @@ export function LoginPage() {
             {loading ? "Signing in…" : "Sign in"}
           </button>
         </form>
-        <div className="mt-4 flex flex-col items-center gap-2">
-          <button
-            type="button"
-            onClick={() => { setUsername("admin"); setPassword("admin123"); }}
-            className="text-sm text-blue-600 hover:text-blue-800 font-medium underline underline-offset-2"
-          >
-            Try Demo (auto-fill admin)
-          </button>
-          <p className="text-xs text-gray-400 text-center">Portfolio demo — synthetic data only.</p>
+        <div className="mt-5 border-t pt-4">
+          <p className="text-xs text-gray-400 text-center mb-2">Demo accounts — click to fill</p>
+          <div className="flex gap-2">
+            {[
+              { label: "Admin", username: "admin", password: "admin123", color: "bg-purple-50 text-purple-700 hover:bg-purple-100" },
+              { label: "Provider", username: "dr_chen", password: "provider123", color: "bg-blue-50 text-blue-700 hover:bg-blue-100" },
+              { label: "Front desk", username: "front_desk", password: "desk123", color: "bg-gray-100 text-gray-600 hover:bg-gray-200" },
+            ].map(({ label, username: u, password: p, color }) => (
+              <button
+                key={label}
+                type="button"
+                onClick={() => { setUsername(u); setPassword(p); }}
+                className={`flex-1 text-xs font-medium px-2 py-1.5 rounded-lg ${color}`}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+          <p className="text-xs text-gray-400 text-center mt-2">Portfolio demo — synthetic data only.</p>
         </div>
       </div>
     </div>

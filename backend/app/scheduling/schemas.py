@@ -16,8 +16,17 @@ class ProviderResponse(BaseModel):
     name: str
     specialty: str | None
     is_active: bool
+    work_days: str | None
+    work_start_hour: int | None
+    work_end_hour: int | None
 
     model_config = {"from_attributes": True}
+
+
+class ProviderUpdate(BaseModel):
+    work_days: str | None = None
+    work_start_hour: int | None = None
+    work_end_hour: int | None = None
 
 
 class VisitTypeCreate(BaseModel):

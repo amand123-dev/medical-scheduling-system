@@ -4,6 +4,11 @@ import client from "./client";
 export const fetchProviders = () =>
   client.get<Provider[]>("/providers").then((r) => r.data);
 
+export const updateProvider = (
+  id: string,
+  body: { work_days: string | null; work_start_hour: number | null; work_end_hour: number | null }
+) => client.patch<Provider>(`/providers/${id}`, body).then((r) => r.data);
+
 export const fetchVisitTypes = () =>
   client.get<VisitType[]>("/visit-types").then((r) => r.data);
 

@@ -61,6 +61,10 @@ class Provider(Base):
     name: Mapped[str] = mapped_column(String(150))
     specialty: Mapped[str] = mapped_column(String(100), nullable=True)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
+    # Comma-separated weekday numbers 0=Mon…6=Sun. NULL means practice default (Mon–Fri).
+    work_days: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    work_start_hour: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    work_end_hour: Mapped[int | None] = mapped_column(Integer, nullable=True)
 
     appointments: Mapped[list["Appointment"]] = relationship(back_populates="provider")
     waitlist_entries: Mapped[list["WaitlistEntry"]] = relationship(back_populates="provider")

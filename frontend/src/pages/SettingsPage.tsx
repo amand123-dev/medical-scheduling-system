@@ -1,15 +1,27 @@
 import { useEffect, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import client from "../api/client";
-import { fetchBlocks, createBlock, createBlocksBulk, deleteBlock } from "../api/appointments";
-import { fetchProviders } from "../api/appointments";
-import type { PracticeSettings } from "../types";
+import { fetchBlocks, createBlock, createBlocksBulk, deleteBlock, fetchProviders, updateProvider } from "../api/appointments";
+import type { PracticeSettings, Provider } from "../types";
 
 const fetchSettings = () => client.get<PracticeSettings>("/settings").then((r) => r.data);
 const patchSettings = (body: Partial<PracticeSettings>) =>
   client.patch<PracticeSettings>("/settings", body).then((r) => r.data);
 
-type Tab = "scheduler" | "blocked";
+const DAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+
+function parseDays(work_days: string | null): boolean[] {
+  if (!work_days) return [true, true, true, true, true, false, false];
+  const set = new Set(work_days.split(",").map(Number));
+  return DAYS.map((_, i) => set.has(i));
+}
+
+function serializeDays(checked: boolean[]): string | null {
+  const days = checked.map((v, i) => v ? String(i) : null).filter(Boolean).join(",");
+  return days || null;
+}
+
+type Tab = "scheduler" | "blocked" | "providers";
 
 export function SettingsPage() {
   const qc = useQueryClient();
@@ -173,6 +185,12 @@ export function SettingsPage() {
         >
           Blocked Days
         </button>
+        <button
+          onClick={() => setTab("providers")}
+          className={`px-4 py-2 font-medium ${tab === "providers" ? "border-b-2 border-blue-600 text-blue-600" : "text-gray-500 hover:text-gray-700"}`}
+        >
+          Providers
+        </button>
       </div>
 
       {tab === "scheduler" && (
@@ -330,6 +348,128 @@ export function SettingsPage() {
           </div>
         </div>
       )}
+
+      {tab === "providers" && (
+        <div className="space-y-4">
+          <p className="text-sm text-gray-500">
+            Override work days and hours per provider. Leave blank to use practice-wide defaults.
+          </p>
+          {providers.map((p) => (
+            <ProviderAvailabilityCard key={p.id} provider={p} practiceSettings={data!} onSaved={() => qc.invalidateQueries({ queryKey: ["providers"] })} />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function ProviderAvailabilityCard({
+  provider,
+  practiceSettings,
+  onSaved,
+}: {
+  provider: Provider;
+  practiceSettings: PracticeSettings;
+  onSaved: () => void;
+}) {
+  const [days, setDays] = useState<boolean[]>(() => parseDays(provider.work_days));
+  const [startHour, setStartHour] = useState<string>(
+    provider.work_start_hour != null ? String(provider.work_start_hour) : ""
+  );
+  const [endHour, setEndHour] = useState<string>(
+    provider.work_end_hour != null ? String(provider.work_end_hour) : ""
+  );
+  const [saved, setSaved] = useState(false);
+  const [err, setErr] = useState("");
+
+  const mut = useMutation({
+    mutationFn: () =>
+      updateProvider(provider.id, {
+        work_days: serializeDays(days),
+        work_start_hour: startHour !== "" ? parseInt(startHour) : null,
+        work_end_hour: endHour !== "" ? parseInt(endHour) : null,
+      }),
+    onSuccess: () => { setSaved(true); setErr(""); onSaved(); setTimeout(() => setSaved(false), 2000); },
+    onError: () => setErr("Save failed — please try again."),
+  });
+
+  function handleReset() {
+    setDays(parseDays(null));
+    setStartHour("");
+    setEndHour("");
+  }
+
+  return (
+    <div className="bg-white rounded-xl shadow p-5">
+      <div className="flex items-center justify-between mb-3">
+        <div>
+          <p className="text-sm font-semibold text-gray-800">{provider.name}</p>
+          {provider.specialty && <p className="text-xs text-gray-400">{provider.specialty}</p>}
+        </div>
+        <button onClick={handleReset} className="text-xs text-gray-400 hover:text-gray-600 underline underline-offset-2">
+          Reset to defaults
+        </button>
+      </div>
+
+      {/* Day checkboxes */}
+      <div className="mb-3">
+        <p className="text-xs font-medium text-gray-600 mb-1.5">Work days</p>
+        <div className="flex gap-1.5 flex-wrap">
+          {DAYS.map((label, i) => (
+            <label key={i} className="flex items-center gap-1 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={days[i]}
+                onChange={(e) => setDays((d) => d.map((v, idx) => idx === i ? e.target.checked : v))}
+                className="rounded border-gray-300 text-blue-600"
+              />
+              <span className="text-xs text-gray-700">{label}</span>
+            </label>
+          ))}
+        </div>
+      </div>
+
+      {/* Work hours */}
+      <div className="flex gap-3 mb-4">
+        <div className="flex-1">
+          <label className="block text-xs font-medium text-gray-600 mb-1">
+            Start hour <span className="text-gray-400">(default: {practiceSettings.work_start_hour})</span>
+          </label>
+          <input
+            type="number"
+            min={0} max={23}
+            placeholder={String(practiceSettings.work_start_hour)}
+            value={startHour}
+            onChange={(e) => setStartHour(e.target.value)}
+            className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm"
+          />
+        </div>
+        <div className="flex-1">
+          <label className="block text-xs font-medium text-gray-600 mb-1">
+            End hour <span className="text-gray-400">(default: {practiceSettings.work_end_hour})</span>
+          </label>
+          <input
+            type="number"
+            min={1} max={24}
+            placeholder={String(practiceSettings.work_end_hour)}
+            value={endHour}
+            onChange={(e) => setEndHour(e.target.value)}
+            className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm"
+          />
+        </div>
+      </div>
+
+      <div className="flex items-center gap-3">
+        <button
+          onClick={() => mut.mutate()}
+          disabled={mut.isPending}
+          className="bg-blue-600 text-white px-4 py-1.5 rounded-lg text-sm font-medium hover:bg-blue-700 disabled:opacity-50"
+        >
+          {mut.isPending ? "Saving…" : "Save"}
+        </button>
+        {saved && <span className="text-green-600 text-sm">Saved</span>}
+        {err && <span className="text-red-600 text-sm">{err}</span>}
+      </div>
     </div>
   );
 }

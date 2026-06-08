@@ -21,6 +21,7 @@ from app.scheduling.schemas import (
     AppointmentCreate,
     PracticeSettingsUpdate,
     ProviderCreate,
+    ProviderUpdate,
     ScheduleBlockCreate,
     VisitTypeCreate,
     WaitlistEntryCreate,
@@ -39,6 +40,21 @@ async def list_providers(session: AsyncSession, active_only: bool = True) -> lis
 async def create_provider(session: AsyncSession, data: ProviderCreate) -> Provider:
     provider = Provider(id=uuid.uuid4(), name=data.name, specialty=data.specialty)
     session.add(provider)
+    await session.commit()
+    await session.refresh(provider)
+    return provider
+
+
+async def update_provider(
+    session: AsyncSession, provider_id: uuid.UUID, data: ProviderUpdate
+) -> Provider | None:
+    result = await session.execute(select(Provider).where(Provider.id == provider_id))
+    provider = result.scalar_one_or_none()
+    if provider is None:
+        return None
+    provider.work_days = data.work_days
+    provider.work_start_hour = data.work_start_hour
+    provider.work_end_hour = data.work_end_hour
     await session.commit()
     await session.refresh(provider)
     return provider
@@ -453,14 +469,26 @@ async def find_next_available(
     if vt is None:
         return None
 
+    prov_result = await session.execute(select(Provider).where(Provider.id == provider_id))
+    provider = prov_result.scalar_one_or_none()
+
     settings = await get_or_create_settings(session)
     duration = timedelta(minutes=vt.duration_minutes)
     now = after or datetime.now(UTC)
     horizon = now + timedelta(days=60)
 
+    # Effective work hours: provider-specific if set, else practice-wide
+    raw_start = provider.work_start_hour if provider and provider.work_start_hour is not None else settings.work_start_hour
+    raw_end = provider.work_end_hour if provider and provider.work_end_hour is not None else settings.work_end_hour
     offset_hours = tz_offset_minutes // 60
-    utc_start = max(0, min(23, settings.work_start_hour + offset_hours))
-    utc_end = max(1, min(24, settings.work_end_hour + offset_hours))
+    utc_start = max(0, min(23, raw_start + offset_hours))
+    utc_end = max(1, min(24, raw_end + offset_hours))
+
+    # Effective work days: provider-specific if set, else Mon–Fri
+    if provider and provider.work_days:
+        allowed_weekdays = set(int(d) for d in provider.work_days.split(",") if d.strip())
+    else:
+        allowed_weekdays = {0, 1, 2, 3, 4}
 
     # Prefetch all schedule blocks for this provider in one query
     blocks_result = await session.execute(
@@ -511,6 +539,10 @@ async def find_next_available(
 
     for _ in range(60 * 24):
         slot_date = candidate.date()
+
+        if slot_date.weekday() not in allowed_weekdays:
+            candidate = _next_day_start(candidate)
+            continue
 
         if _is_blocked(slot_date):
             candidate = _next_day_start(candidate)

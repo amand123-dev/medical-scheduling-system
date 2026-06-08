@@ -170,7 +170,10 @@ export function WaitlistPage() {
 
   const acceptMut = useMutation({
     mutationFn: (id: string) => acceptOffer(id),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["waitlist"] }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["waitlist"] });
+      qc.invalidateQueries({ queryKey: ["appointments"] });
+    },
   });
   const declineMut = useMutation({
     mutationFn: (id: string) => declineOffer(id),

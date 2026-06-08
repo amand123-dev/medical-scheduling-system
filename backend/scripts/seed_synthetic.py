@@ -100,7 +100,7 @@ async def seed():
 
         print("Seeding patients in identity schema...")
         patient_uuids = []
-        for _ in range(30):
+        for _ in range(50):
             pid = uuid.uuid4()
             patient_uuids.append(pid)
             await session.execute(
@@ -158,7 +158,7 @@ async def seed():
                     return day, hour
             return None
 
-        past_statuses = [AppointmentStatus.completed] * 48 + [AppointmentStatus.no_show] * 7
+        past_statuses = [AppointmentStatus.completed] * 70 + [AppointmentStatus.no_show] * 10
         random.shuffle(past_statuses)
 
         for i, status in enumerate(past_statuses):
@@ -191,18 +191,31 @@ async def seed():
             )
 
         # ── Future scheduled appointments ──────────────────────────────────────
-        print("Seeding future appointments (10 scheduled)...")
-        for i in range(10):
+        # Guaranteed risk spread so the calendar always shows all three outreach colors.
+        print("Seeding future appointments (20 scheduled)...")
+        risk_pool = (
+            [round(random.uniform(0.52, 0.90), 2) for _ in range(6)]   # 🔴 high
+            + [round(random.uniform(0.20, 0.49), 2) for _ in range(6)] # 🟡 medium
+            + [round(random.uniform(0.03, 0.18), 2) for _ in range(5)] # 🟢 low
+            + [None] * 3                                                # no data
+        )
+        random.shuffle(risk_pool)
+        future_slots: set[tuple[str, int, int]] = set()
+        for i in range(20):
             provider = providers[i % len(providers)]
             vt = random.choice(visit_types)
             patient_uuid = random.choice(patient_uuids)
-            day_offset = random.randint(1, 20)
-            hour = random.choice(WORK_HOURS)
+            for _ in range(20):
+                day_offset = random.randint(1, 30)
+                hour = random.choice(WORK_HOURS)
+                key = (str(provider.id), day_offset, hour)
+                if key not in future_slots:
+                    future_slots.add(key)
+                    break
             start = now.replace(hour=hour, minute=0, second=0, microsecond=0) + timedelta(
                 days=day_offset
             )
             end = start + timedelta(minutes=vt.duration_minutes)
-            risk = round(random.uniform(0.05, 0.45), 2) if random.random() > 0.3 else None
             session.add(
                 Appointment(
                     id=uuid.uuid4(),
@@ -212,7 +225,7 @@ async def seed():
                     start_time=start,
                     end_time=end,
                     status=AppointmentStatus.scheduled,
-                    no_show_risk=risk,
+                    no_show_risk=risk_pool[i],
                 )
             )
 
@@ -236,7 +249,7 @@ async def seed():
         # 3 offered → visible hold timers in UI
         for i in range(3):
             offered_at = now - timedelta(minutes=random.randint(2, 15))
-            slot_start = now.replace(hour=9, minute=0, second=0, microsecond=0) + timedelta(
+            slot_start = now.replace(hour=random.choice(WORK_HOURS), minute=0, second=0, microsecond=0) + timedelta(
                 days=random.randint(1, 5)
             )
             vt = visit_types[i % len(visit_types)]
@@ -256,8 +269,8 @@ async def seed():
                 )
             )
 
-        # 6 waiting → action buttons visible
-        for _ in range(6):
+        # 10 waiting → action buttons visible
+        for _ in range(10):
             session.add(
                 WaitlistEntry(
                     id=uuid.uuid4(),

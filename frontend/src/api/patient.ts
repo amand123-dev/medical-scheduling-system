@@ -74,7 +74,7 @@ export const findNextAvailablePublic = (
   after?: string
 ) =>
   client
-    .get<NextAvailable>("/appointments/next-available", {
+    .get<NextAvailable>("/patient/appointments/next-available", {
       params: {
         provider_id: providerId,
         visit_type_id: visitTypeId,

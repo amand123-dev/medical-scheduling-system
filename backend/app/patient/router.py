@@ -1,4 +1,5 @@
 import uuid
+from datetime import datetime
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import select, text
@@ -18,6 +19,7 @@ from app.scheduling.models import (
 from app.scheduling.schemas import (
     AppointmentCreate,
     AppointmentResponse,
+    NextAvailableResponse,
     ProviderResponse,
     VisitTypeResponse,
     WaitlistEntryCreate,
@@ -41,6 +43,29 @@ async def patient_list_providers(session: AsyncSession = Depends(get_session)):
 @router.get("/visit-types", response_model=list[VisitTypeResponse])
 async def patient_list_visit_types(session: AsyncSession = Depends(get_session)):
     return await crud.list_visit_types(session)
+
+
+@router.get("/appointments/next-available", response_model=NextAvailableResponse)
+async def patient_next_available(
+    provider_id: uuid.UUID,
+    visit_type_id: uuid.UUID,
+    after: datetime | None = None,
+    tz_offset: int = 0,
+    session: AsyncSession = Depends(get_session),
+    _current: PatientAccount = Depends(get_current_patient),
+):
+    from datetime import timedelta
+    start = await crud.find_next_available(session, provider_id, visit_type_id, after, tz_offset)
+    if start is None:
+        raise HTTPException(status_code=404, detail="No available slot found in the next 60 days")
+    vt = await crud.get_visit_type(session, visit_type_id)
+    end = start + timedelta(minutes=vt.duration_minutes)
+    return NextAvailableResponse(
+        provider_id=provider_id,
+        visit_type_id=visit_type_id,
+        start_time=start,
+        end_time=end,
+    )
 
 
 # ── Identity ──────────────────────────────────────────────────────────────────

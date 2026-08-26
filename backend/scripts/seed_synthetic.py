@@ -23,6 +23,7 @@ from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
 sys.path.insert(0, ".")
 from app.config import settings
+from app.identity.models import PatientIdentity
 from app.scheduling.models import (
     Appointment,
     AppointmentStatus,
@@ -108,20 +109,16 @@ async def seed():
         for _ in range(50):
             pid = uuid.uuid4()
             patient_uuids.append(pid)
-            await session.execute(
-                text(
-                    "INSERT INTO identity.patient_identity "
-                    "(patient_uuid, first_name, last_name, dob, phone, email) "
-                    "VALUES (:uuid, :first, :last, :dob, :phone, :email)"
-                ),
-                {
-                    "uuid": str(pid),
-                    "first": fake.first_name(),
-                    "last": fake.last_name(),
-                    "dob": fake.date_of_birth(minimum_age=18, maximum_age=85).isoformat(),
-                    "phone": fake.phone_number()[:20],
-                    "email": fake.email(),
-                },
+            # ORM insert so the encrypted column types apply
+            session.add(
+                PatientIdentity(
+                    patient_uuid=pid,
+                    first_name=fake.first_name(),
+                    last_name=fake.last_name(),
+                    dob=fake.date_of_birth(minimum_age=18, maximum_age=85).isoformat(),
+                    phone=fake.phone_number()[:20],
+                    email=fake.email(),
+                )
             )
 
         # ── Demo patient profiles (sidecar JSON for ML scorer demo) ───────────

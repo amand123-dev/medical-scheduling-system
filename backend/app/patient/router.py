@@ -2,11 +2,12 @@ import uuid
 from datetime import datetime
 
 from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy import select, text
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth.dependencies import get_current_patient
 from app.database import get_session
+from app.identity.models import PatientIdentity
 from app.matcher.engine import accept_offer, decline_offer
 from app.scheduling import crud
 from app.scheduling.models import (
@@ -76,20 +77,21 @@ async def get_my_identity(
     current: PatientAccount = Depends(get_current_patient),
     session: AsyncSession = Depends(get_session),
 ):
+    # ORM read, not raw SQL — the PII columns are encrypted at rest and only
+    # the type decorator knows how to decrypt them.
     row = await session.execute(
-        text(
-            "SELECT first_name, last_name, dob, phone, email FROM identity.patient_identity "
-            "WHERE patient_uuid = :uuid"
-        ),
-        {"uuid": str(current.patient_uuid)},
+        select(PatientIdentity).where(PatientIdentity.patient_uuid == current.patient_uuid)
     )
-    identity = row.mappings().one_or_none()
+    identity = row.scalar_one_or_none()
     if identity is None:
         raise HTTPException(status_code=404, detail="Identity not found")
     return {
         "patient_uuid": str(current.patient_uuid),
         "email": current.email,
-        **dict(identity),
+        "first_name": identity.first_name,
+        "last_name": identity.last_name,
+        "dob": identity.dob,
+        "phone": identity.phone,
     }
 
 

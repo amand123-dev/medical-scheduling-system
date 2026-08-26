@@ -133,10 +133,14 @@ class TestPIIEncryptionAtRest:
         # Bypass the ORM entirely — this is what someone with the database sees.
         # (The fixture DB is function-scoped, so this patient is the only row.)
         rows = (
-            await session.execute(
-                text("SELECT first_name, last_name, dob, phone, email FROM patient_identity")
+            (
+                await session.execute(
+                    text("SELECT first_name, last_name, dob, phone, email FROM patient_identity")
+                )
             )
-        ).mappings().all()
+            .mappings()
+            .all()
+        )
         assert len(rows) == 1
         row = rows[0]
 

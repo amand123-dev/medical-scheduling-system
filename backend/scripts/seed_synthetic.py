@@ -13,7 +13,7 @@ import json
 import random
 import sys
 import uuid
-from datetime import UTC, datetime, timedelta
+from datetime import datetime, timedelta
 from pathlib import Path
 
 import bcrypt as _bcrypt
@@ -73,8 +73,16 @@ async def seed():
 
     async with session_factory() as session:
         print("Clearing existing data...")
-        await session.execute(text("TRUNCATE operational.reminder_log, operational.waitlist_entry, operational.appointment, operational.schedule_block, operational.visit_type, operational.provider, operational.staff_user, operational.practice_settings RESTART IDENTITY CASCADE"))
-        await session.execute(text("TRUNCATE identity.identity_access_log, identity.patient_identity RESTART IDENTITY CASCADE"))
+        await session.execute(
+            text(
+                "TRUNCATE operational.reminder_log, operational.waitlist_entry, operational.appointment, operational.schedule_block, operational.visit_type, operational.provider, operational.staff_user, operational.practice_settings RESTART IDENTITY CASCADE"
+            )
+        )
+        await session.execute(
+            text(
+                "TRUNCATE identity.identity_access_log, identity.patient_identity RESTART IDENTITY CASCADE"
+            )
+        )
         await session.commit()
 
         print("Seeding providers...")
@@ -196,10 +204,10 @@ async def seed():
         # Guaranteed risk spread so the calendar always shows all three outreach colors.
         print("Seeding future appointments (20 scheduled)...")
         risk_pool = (
-            [round(random.uniform(0.52, 0.90), 2) for _ in range(6)]   # 🔴 high
-            + [round(random.uniform(0.20, 0.49), 2) for _ in range(6)] # 🟡 medium
-            + [round(random.uniform(0.03, 0.18), 2) for _ in range(5)] # 🟢 low
-            + [None] * 3                                                # no data
+            [round(random.uniform(0.52, 0.90), 2) for _ in range(6)]  # 🔴 high
+            + [round(random.uniform(0.20, 0.49), 2) for _ in range(6)]  # 🟡 medium
+            + [round(random.uniform(0.03, 0.18), 2) for _ in range(5)]  # 🟢 low
+            + [None] * 3  # no data
         )
         random.shuffle(risk_pool)
         future_slots: set[tuple[str, int, int]] = set()
@@ -251,9 +259,9 @@ async def seed():
         # 3 offered → visible hold timers in UI
         for i in range(3):
             offered_at = now - timedelta(minutes=random.randint(2, 15))
-            slot_start = now.replace(hour=random.choice(WORK_HOURS), minute=0, second=0, microsecond=0) + timedelta(
-                days=random.randint(1, 5)
-            )
+            slot_start = now.replace(
+                hour=random.choice(WORK_HOURS), minute=0, second=0, microsecond=0
+            ) + timedelta(days=random.randint(1, 5))
             vt = visit_types[i % len(visit_types)]
             session.add(
                 WaitlistEntry(

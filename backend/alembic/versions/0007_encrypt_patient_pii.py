@@ -44,12 +44,16 @@ def _cipher() -> StringEncryptedType:
 
 def _rewrite_rows(conn, transform) -> None:
     """Apply `transform` to every PII value in the table, row by row."""
-    rows = conn.execute(
-        sa.text(
-            "SELECT patient_uuid, first_name, last_name, dob, phone, email "
-            "FROM identity.patient_identity"
+    rows = (
+        conn.execute(
+            sa.text(
+                "SELECT patient_uuid, first_name, last_name, dob, phone, email "
+                "FROM identity.patient_identity"
+            )
         )
-    ).mappings().all()
+        .mappings()
+        .all()
+    )
 
     for row in rows:
         conn.execute(

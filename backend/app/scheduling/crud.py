@@ -321,22 +321,22 @@ async def create_schedule_block(session: AsyncSession, data: ScheduleBlockCreate
 async def create_schedule_blocks_bulk(
     session: AsyncSession, items: list[ScheduleBlockCreate]
 ) -> dict:
-    existing_q = await session.execute(
-        select(ScheduleBlock.start_date, ScheduleBlock.provider_id)
-    )
+    existing_q = await session.execute(select(ScheduleBlock.start_date, ScheduleBlock.provider_id))
     existing = {(row.provider_id, row.start_date) for row in existing_q}
 
     added = 0
     for item in items:
         key = (item.provider_id, item.start_date)
         if key not in existing:
-            session.add(ScheduleBlock(
-                id=uuid.uuid4(),
-                provider_id=item.provider_id,
-                start_date=item.start_date,
-                end_date=item.end_date,
-                reason=item.reason,
-            ))
+            session.add(
+                ScheduleBlock(
+                    id=uuid.uuid4(),
+                    provider_id=item.provider_id,
+                    start_date=item.start_date,
+                    end_date=item.end_date,
+                    reason=item.reason,
+                )
+            )
             added += 1
 
     if added > 0:
@@ -489,8 +489,16 @@ async def find_next_available(
     horizon = now + timedelta(days=60)
 
     # Effective work hours: provider-specific if set, else practice-wide
-    raw_start = provider.work_start_hour if provider and provider.work_start_hour is not None else settings.work_start_hour
-    raw_end = provider.work_end_hour if provider and provider.work_end_hour is not None else settings.work_end_hour
+    raw_start = (
+        provider.work_start_hour
+        if provider and provider.work_start_hour is not None
+        else settings.work_start_hour
+    )
+    raw_end = (
+        provider.work_end_hour
+        if provider and provider.work_end_hour is not None
+        else settings.work_end_hour
+    )
     offset_hours = tz_offset_minutes // 60
     utc_start = max(0, min(23, raw_start + offset_hours))
     utc_end = max(1, min(24, raw_end + offset_hours))
@@ -546,7 +554,9 @@ async def find_next_available(
         candidate += timedelta(minutes=step_mins)
 
     def _next_day_start(dt: datetime) -> datetime:
-        return datetime(dt.year, dt.month, dt.day, utc_start, 0, tzinfo=dt.tzinfo) + timedelta(days=1)
+        return datetime(dt.year, dt.month, dt.day, utc_start, 0, tzinfo=dt.tzinfo) + timedelta(
+            days=1
+        )
 
     for _ in range(60 * 24):
         slot_date = candidate.date()

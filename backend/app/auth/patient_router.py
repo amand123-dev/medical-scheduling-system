@@ -30,7 +30,9 @@ class PatientLoginRequest(BaseModel):
 
 
 @router.post("/register", response_model=TokenResponse, status_code=201)
-async def patient_register(body: PatientRegisterRequest, session: AsyncSession = Depends(get_session)):
+async def patient_register(
+    body: PatientRegisterRequest, session: AsyncSession = Depends(get_session)
+):
     # Check email not already taken
     existing = await session.execute(
         select(PatientAccount).where(PatientAccount.email == body.email)
@@ -72,11 +74,11 @@ async def patient_register(body: PatientRegisterRequest, session: AsyncSession =
 
 @router.post("/login", response_model=TokenResponse)
 async def patient_login(body: PatientLoginRequest, session: AsyncSession = Depends(get_session)):
-    result = await session.execute(
-        select(PatientAccount).where(PatientAccount.email == body.email)
-    )
+    result = await session.execute(select(PatientAccount).where(PatientAccount.email == body.email))
     account = result.scalar_one_or_none()
-    if account is None or not _bcrypt.checkpw(body.password.encode(), account.hashed_password.encode()):
+    if account is None or not _bcrypt.checkpw(
+        body.password.encode(), account.hashed_password.encode()
+    ):
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Bad credentials")
 
     return TokenResponse(

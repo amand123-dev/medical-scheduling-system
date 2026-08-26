@@ -8,10 +8,10 @@ from app.config import settings
 engine = create_async_engine(
     settings.database_url,
     echo=False,
-    pool_pre_ping=True,       # re-validate connections after Neon suspend
-    pool_recycle=300,         # recycle connections every 5 min
+    pool_pre_ping=True,  # re-validate connections after Neon suspend
+    pool_recycle=300,  # recycle connections every 5 min
     connect_args={
-        "timeout": 10,        # fail fast if Neon is still waking up
+        "timeout": 10,  # fail fast if Neon is still waking up
         "command_timeout": 30,
     },
 )

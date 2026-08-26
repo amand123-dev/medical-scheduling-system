@@ -29,6 +29,11 @@ from app.scheduling.schemas import (
 from app.scorer.ratio import compute_no_show_risk
 
 
+def _as_utc(dt: datetime) -> datetime:
+    """Ensure dt is UTC-aware; SQLite returns naive datetimes in tests."""
+    return dt if dt.tzinfo is not None else dt.replace(tzinfo=UTC)
+
+
 async def list_providers(session: AsyncSession, active_only: bool = True) -> list[Provider]:
     q = select(Provider)
     if active_only:
@@ -480,7 +485,7 @@ async def find_next_available(
 
     settings = await get_or_create_settings(session)
     duration = timedelta(minutes=vt.duration_minutes)
-    now = after or datetime.now(UTC)
+    now = _as_utc(after) if after else datetime.now(UTC)
     horizon = now + timedelta(days=60)
 
     # Effective work hours: provider-specific if set, else practice-wide
@@ -526,7 +531,7 @@ async def find_next_available(
             )
         )
     )
-    appts = [(a.start_time, a.end_time) for a in appts_result.scalars().all()]
+    appts = [(_as_utc(a.start_time), _as_utc(a.end_time)) for a in appts_result.scalars().all()]
 
     def _has_overlap_local(start: datetime, end: datetime) -> bool:
         return any(a_start < end and a_end + buffer > start for a_start, a_end in appts)

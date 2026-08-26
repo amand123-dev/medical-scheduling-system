@@ -9,3 +9,7 @@ ignore = ["E501", "B008", "B904"]
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 testpaths = ["tests"]
+# Live tests hit the public FHIR test server, whose contents change without
+# notice. Excluded by default; run them with: pytest -m live
+addopts = "-m 'not live'"
+markers = ["live: hits a real external server (deselected by default)"]

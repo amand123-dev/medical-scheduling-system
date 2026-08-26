@@ -23,6 +23,8 @@ from typing import Any
 import httpx
 from mcp.server.mcpserver import MCPServer
 
+from mcp_server import fhir
+
 API_URL = os.environ.get("SCHEDULER_API_URL", "http://localhost:8000").rstrip("/")
 API_TOKEN = os.environ.get("SCHEDULER_API_TOKEN", "")
 TIMEOUT = float(os.environ.get("SCHEDULER_API_TIMEOUT", "30"))
@@ -39,7 +41,11 @@ mcp = MCPServer(
         "recorded in the practice's identity access log. Call it only when the "
         "user's request actually requires it, and tell them it was logged.\n\n"
         "Risk scores drive outreach, not deprioritization. Never suggest "
-        "denying, delaying or deprioritizing care based on a no-show score."
+        "denying, delaying or deprioritizing care based on a no-show score.\n\n"
+        "The fhir_* tools read a SEPARATE external FHIR R4 server holding synthetic "
+        "clinical records. FHIR resource ids are a different namespace from this "
+        "practice's patient UUIDs — never pass one where the other is expected, and "
+        "never assume a FHIR patient and a scheduler patient are the same person."
     ),
 )
 
@@ -150,6 +156,122 @@ async def get_no_show_risk(patient_uuid: str) -> dict:
 async def get_dashboard_metrics(days: int = 30) -> dict:
     """Aggregate practice metrics. No patient-level data."""
     return await _get("/dashboard/metrics", {"days": days})
+
+
+# --- FHIR R4 tools ----------------------------------------------------------
+#
+# These read an external FHIR server, not this practice's database. They are a
+# separate namespace on purpose: get_patient_context above is governed by the
+# scheduler's role checks and writes identity_access_log, and none of that
+# applies to a third-party API. Collapsing the two would quietly imply audit
+# coverage that does not exist.
+
+
+def _fhir_error(exc: fhir.FhirError) -> dict:
+    kind = "scope_error" if isinstance(exc, fhir.ScopeError) else "fhir_error"
+    return {"error": kind, "detail": str(exc)}
+
+
+@mcp.tool(
+    description=(
+        "Report which FHIR R4 server is configured, its version, and which resource "
+        "types are in scope. Call this first when a FHIR request fails, to tell a "
+        "misconfigured base URL apart from a genuinely missing record."
+    )
+)
+async def fhir_server_info() -> dict:
+    """Capability summary of the configured FHIR R4 endpoint."""
+    try:
+        return await fhir.capability_summary()
+    except fhir.FhirError as exc:
+        return _fhir_error(exc)
+
+
+@mcp.tool(
+    description=(
+        "Search patients on the external FHIR R4 server by name, family name or "
+        "identifier. Returns synthetic test records — never real patients. These are "
+        "FHIR ids, not this practice's patient UUIDs."
+    )
+)
+async def fhir_search_patients(
+    name: str | None = None,
+    family: str | None = None,
+    identifier: str | None = None,
+    limit: int = 10,
+) -> dict:
+    """Find candidate FHIR patients."""
+    try:
+        return await fhir.search_patients(
+            name=name, family=family, identifier=identifier, count=limit
+        )
+    except fhir.FhirError as exc:
+        return _fhir_error(exc)
+
+
+@mcp.tool(description="Fetch one FHIR R4 Patient resource by its FHIR id.")
+async def fhir_get_patient(fhir_patient_id: str) -> dict:
+    """Demographics for one FHIR patient."""
+    try:
+        return await fhir.get_patient(fhir_patient_id)
+    except fhir.FhirError as exc:
+        return _fhir_error(exc)
+
+
+@mcp.tool(
+    description=(
+        "List a FHIR patient's Condition resources — diagnoses with clinical and "
+        "verification status. Read-only reference data; do not use it to make "
+        "clinical decisions or to alter how the patient is scheduled."
+    )
+)
+async def fhir_get_conditions(fhir_patient_id: str, limit: int = 25) -> dict:
+    """Conditions for one FHIR patient."""
+    try:
+        return await fhir.get_resources_for_patient("Condition", fhir_patient_id, count=limit)
+    except fhir.FhirError as exc:
+        return _fhir_error(exc)
+
+
+@mcp.tool(
+    description=(
+        "List a FHIR patient's MedicationRequest resources. This is medication "
+        "history for context only. Do not use it for controlled-substance "
+        "monitoring, doctor-shopping detection, or any patient flagging — this "
+        "system does not do clinical surveillance."
+    )
+)
+async def fhir_get_medications(fhir_patient_id: str, limit: int = 25) -> dict:
+    """Medication requests for one FHIR patient."""
+    try:
+        return await fhir.get_resources_for_patient(
+            "MedicationRequest", fhir_patient_id, count=limit
+        )
+    except fhir.FhirError as exc:
+        return _fhir_error(exc)
+
+
+@mcp.tool(
+    description=(
+        "List a FHIR patient's Observation resources — vitals and lab results with "
+        "values and units. Optionally filter by LOINC code or category "
+        "(e.g. category='vital-signs')."
+    )
+)
+async def fhir_get_observations(
+    fhir_patient_id: str,
+    code: str | None = None,
+    category: str | None = None,
+    limit: int = 25,
+) -> dict:
+    """Observations for one FHIR patient."""
+    extra = {k: v for k, v in (("code", code), ("category", category)) if v}
+    try:
+        return await fhir.get_resources_for_patient(
+            "Observation", fhir_patient_id, count=limit, extra=extra
+        )
+    except fhir.FhirError as exc:
+        return _fhir_error(exc)
 
 
 def main() -> None:

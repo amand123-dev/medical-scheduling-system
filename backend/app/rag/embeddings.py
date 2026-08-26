@@ -22,9 +22,12 @@ layer.
 from __future__ import annotations
 
 import hashlib
+import logging
 import math
 import re
 from typing import Protocol
+
+logger = logging.getLogger(__name__)
 
 # BAAI/bge-small-en-v1.5. Changing this requires re-embedding the whole corpus
 # and a migration to alter the vector column width.
@@ -112,6 +115,15 @@ def get_embedder(provider: str | None = None) -> Embedder:
         try:
             _cached = FastEmbedEmbedder()
         except ImportError:
+            # Loud, because the failure is otherwise invisible: retrieval keeps
+            # working, just badly. This was silently degrading the eval baseline
+            # until the harness reported which embedder it had actually used.
+            logger.warning(
+                "embedding_provider=%r but fastembed is not installed; falling back to "
+                "the hashing embedder. Retrieval quality will be significantly worse. "
+                "Install it with: pip install fastembed",
+                provider,
+            )
             _cached = HashingEmbedder()
     else:
         _cached = HashingEmbedder()

@@ -16,6 +16,7 @@ class Settings(BaseSettings):
             url = url.replace("sslmode=require", "ssl=require")
         object.__setattr__(self, "database_url", url)
         return self
+
     secret_key: str = "dev-secret-key-change-in-production"
     algorithm: str = "HS256"
     access_token_expire_minutes: int = 60
@@ -23,6 +24,11 @@ class Settings(BaseSettings):
     encryption_key: str = "dev-encryption-key-32-chars-long!!"
 
     noshow_model: str = "ratio"
+
+    # Retrieval: "fastembed" runs a local ONNX model; "hashing" is the offline
+    # deterministic fallback used by tests and CI.
+    embedding_provider: str = "fastembed"
+    rag_top_k: int = 5
 
     matcher_w1: float = 1.0
     matcher_w2: float = 0.5

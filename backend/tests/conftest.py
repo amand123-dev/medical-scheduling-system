@@ -13,6 +13,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_asyn
 
 # Import models so they register with Base.metadata
 import app.identity.models  # noqa: F401
+import app.rag.models  # noqa: F401
 import app.scheduling.models  # noqa: F401
 from app.auth.router import hash_password
 from app.database import Base, get_session

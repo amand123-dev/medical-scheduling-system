@@ -17,3 +17,6 @@ venv/
 
 # Eval run artifacts
 backend/evals/reports/
+
+# MCP server virtualenv (separate deps — see backend/mcp_server/requirements.txt)
+backend/.venv-mcp/

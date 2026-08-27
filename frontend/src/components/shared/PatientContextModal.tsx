@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { fetchPatientContext } from "../../api/rag";
+import { askPatient, fetchPatientContext } from "../../api/rag";
 import type { Passage } from "../../types";
 
 interface Props {
@@ -16,12 +16,13 @@ const SUGGESTIONS = [
   "Is a follow-up due?",
 ];
 
-function PassageCard({ passage }: { passage: Passage }) {
+function PassageCard({ passage, index }: { passage: Passage; index: number }) {
   const pct = Math.round(Math.min(Math.max(passage.score, 0), 1) * 100);
   return (
     <article className="border border-gray-200 rounded-lg px-4 py-3">
       <div className="flex items-start justify-between gap-3 mb-1.5">
         <div className="min-w-0">
+          <span className="text-xs font-medium text-gray-400 mr-2 tabular-nums">#{index + 1}</span>
           <span className="text-sm font-semibold text-gray-900">
             {passage.title.replace(/_/g, " ")}
           </span>
@@ -40,17 +41,29 @@ function PassageCard({ passage }: { passage: Passage }) {
 
 export function PatientContextModal({ uuid, onClose }: Props) {
   const [query, setQuery] = useState("");
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState<"search" | "summarise" | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [passages, setPassages] = useState<Passage[] | null>(null);
   const [searched, setSearched] = useState("");
+  const [summary, setSummary] = useState<string | null>(null);
+  const [model, setModel] = useState<string | null>(null);
+  // Distinguished from a generic error: a 403 here is the expected state for a
+  // practice that has not signed a BAA, not a malfunction.
+  const [generationBlocked, setGenerationBlocked] = useState(false);
+
+  function reset(trimmed: string) {
+    setQuery(trimmed);
+    setError(null);
+    setSummary(null);
+    setModel(null);
+    setGenerationBlocked(false);
+  }
 
   async function run(q: string) {
     const trimmed = q.trim();
     if (trimmed.length < 2) return;
-    setQuery(trimmed);
-    setLoading(true);
-    setError(null);
+    reset(trimmed);
+    setLoading("search");
     try {
       const result = await fetchPatientContext(uuid, trimmed);
       setPassages(result.passages);
@@ -58,9 +71,35 @@ export function PatientContextModal({ uuid, onClose }: Props) {
     } catch {
       setError("Retrieval failed. Admin or provider role required.");
     } finally {
-      setLoading(false);
+      setLoading(null);
     }
   }
+
+  async function summarise() {
+    const trimmed = query.trim();
+    if (trimmed.length < 2) return;
+    reset(trimmed);
+    setLoading("summarise");
+    try {
+      const result = await askPatient(uuid, trimmed);
+      setPassages(result.passages);
+      setSearched(trimmed);
+      setSummary(result.answer);
+      setModel(result.model);
+    } catch (e: unknown) {
+      const status = (e as { response?: { status?: number } })?.response?.status;
+      if (status === 403) {
+        setGenerationBlocked(true);
+      } else {
+        setError("Summarising failed. Admin or provider role required.");
+      }
+    } finally {
+      setLoading(null);
+    }
+  }
+
+  const busy = loading !== null;
+  const tooShort = query.trim().length < 2;
 
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[60] p-4">
@@ -80,8 +119,10 @@ export function PatientContextModal({ uuid, onClose }: Props) {
         <div className="bg-amber-50 border border-amber-200 rounded-lg px-4 py-3 text-sm text-amber-800 mb-4">
           <p className="font-medium">Every search here is permanently recorded in the audit log.</p>
           <p className="text-xs mt-1">
-            Documents are de-identified and scoped to this patient only. Passages are returned as
-            written — nothing is summarised or sent to an external model.
+            Documents are de-identified and scoped to this patient only. <strong>Search</strong>{" "}
+            returns passages as written and sends nothing outside this system.{" "}
+            <strong>Summarise</strong> sends those passages to an external model, is logged as a
+            separate action, and stays disabled unless the practice has enabled it.
           </p>
           <p className="text-xs font-mono mt-1.5 break-all">{uuid}</p>
         </div>
@@ -103,10 +144,19 @@ export function PatientContextModal({ uuid, onClose }: Props) {
           />
           <button
             type="submit"
-            disabled={loading || query.trim().length < 2}
+            disabled={busy || tooShort}
             className="px-4 py-2 rounded-lg bg-blue-600 text-white text-sm font-medium hover:bg-blue-700 disabled:bg-gray-200 disabled:text-gray-400"
           >
-            {loading ? "Searching…" : "Search"}
+            {loading === "search" ? "Searching…" : "Search"}
+          </button>
+          <button
+            type="button"
+            onClick={() => void summarise()}
+            disabled={busy || tooShort}
+            title="Sends de-identified passages to an external model"
+            className="px-4 py-2 rounded-lg border border-amber-300 bg-white text-amber-800 text-sm font-medium hover:bg-amber-50 disabled:border-gray-200 disabled:text-gray-400"
+          >
+            {loading === "summarise" ? "Summarising…" : "Summarise"}
           </button>
         </form>
 
@@ -126,7 +176,39 @@ export function PatientContextModal({ uuid, onClose }: Props) {
         <div className="overflow-y-auto flex-1 -mx-1 px-1">
           {error && <p className="text-red-600 text-sm">{error}</p>}
 
-          {!error && passages === null && !loading && (
+          {generationBlocked && (
+            <div className="bg-gray-50 border border-gray-300 rounded-lg px-4 py-3 text-sm text-gray-700 mb-3">
+              <p className="font-medium flex items-center gap-2">
+                <span aria-hidden="true">🚫</span> Summarising is turned off for this practice.
+              </p>
+              <p className="text-xs mt-1.5 leading-relaxed">
+                De-identification here replaces names with a reversible token, so these passages are
+                still protected health information. Sending them to a hosted model requires a
+                business associate agreement with zero-retention terms. The capability is built and
+                switched off — an administrator enables it once that agreement is in place. Search
+                still works and sends nothing outside this system.
+              </p>
+            </div>
+          )}
+
+          {summary && (
+            <section className="border-l-4 border-amber-400 bg-amber-50/50 rounded-lg px-4 py-3 mb-3">
+              <div className="flex items-center gap-2 mb-1.5">
+                <span aria-hidden="true">💬</span>
+                <h4 className="text-sm font-semibold text-gray-900">Summary</h4>
+                {model && (
+                  <span className="text-xs text-gray-400 font-mono ml-auto">{model}</span>
+                )}
+              </div>
+              <p className="text-sm text-gray-800 whitespace-pre-wrap leading-relaxed">{summary}</p>
+              <p className="text-xs text-amber-800 mt-2">
+                These passages were sent to an external model. Logged separately in the audit trail.
+                Verify against the passages below before acting on this.
+              </p>
+            </section>
+          )}
+
+          {!error && passages === null && !busy && (
             <p className="text-gray-400 text-sm text-center py-8">
               Ask a question to retrieve passages from this patient's documents.
             </p>
@@ -144,8 +226,8 @@ export function PatientContextModal({ uuid, onClose }: Props) {
                 {passages.length} passage{passages.length !== 1 ? "s" : ""} for “{searched}”, best
                 match first
               </p>
-              {passages.map((p) => (
-                <PassageCard key={`${p.source}-${p.chunk_index}`} passage={p} />
+              {passages.map((p, i) => (
+                <PassageCard key={`${p.source}-${p.chunk_index}`} passage={p} index={i} />
               ))}
             </div>
           )}

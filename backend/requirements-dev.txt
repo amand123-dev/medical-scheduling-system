@@ -3,6 +3,5 @@
 # Tooling only — not needed to serve the API.
 ruff==0.16.4
 
-# Eval harness. Only needed for a full `python -m evals.run`;
-# `--retrieval-only` runs without it.
-anthropic==0.96.0
+# The eval harness needs `anthropic`, which now ships in requirements.txt
+# because the API itself generates answers. `--retrieval-only` needs no key.

@@ -30,6 +30,17 @@ class Settings(BaseSettings):
     embedding_provider: str = "fastembed"
     rag_top_k: int = 5
 
+    # Generation. Protocol docs carry no PHI, so answering over them is on by
+    # default. Patient passages are a different matter: even with names
+    # redacted the token is reversible, so sending them to a hosted model is a
+    # contractual question (BAA + zero retention), not a technical one. That
+    # path ships off by default and an admin turns it on deliberately.
+    anthropic_api_key: str = ""
+    generation_model: str = "claude-sonnet-5"
+    generation_max_tokens: int = 1024
+    protocol_generation_enabled: bool = True
+    patient_generation_enabled: bool = False
+
     matcher_w1: float = 1.0
     matcher_w2: float = 0.5
     matcher_w3: float = 0.3

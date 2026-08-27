@@ -166,3 +166,19 @@ export interface PatientContextResponse {
   passages: Passage[];
   audit_logged: boolean;
 }
+
+export interface ProtocolAnswerResponse {
+  query: string;
+  answer: string | null;
+  passages: Passage[];
+  model: string | null;
+  /** False when the server has no API key — the passages are still returned. */
+  generated: boolean;
+}
+
+export interface PatientAnswerResponse extends ProtocolAnswerResponse {
+  patient_uuid: string;
+  audit_logged: boolean;
+  /** What actually happened on this request, so the UI can state it rather than assert it. */
+  sent_to_external_model: boolean;
+}

@@ -201,6 +201,25 @@ class TestRequests:
         await fhir.get_resources_for_patient("Condition", "abc", client=_client(handler))
         assert "patient=abc" in seen["url"]
 
+    @pytest.mark.parametrize("missing", [None, "", "   "])
+    async def test_a_missing_patient_id_is_refused_before_the_network_call(self, missing):
+        """
+        httpx drops None params, so an absent id would turn a patient-scoped
+        search into an unscoped one returning arbitrary patients' clinical
+        records. Caught live against the public server: passing None for the id
+        returned three other people's Conditions with a 200.
+        """
+        called = []
+
+        def handler(request):
+            called.append(str(request.url))
+            return httpx.Response(200, json=_bundle())
+
+        with pytest.raises(fhir.FhirError) as exc:
+            await fhir.get_resources_for_patient("Condition", missing, client=_client(handler))
+        assert called == []
+        assert "patient id is required" in str(exc.value)
+
     async def test_only_get_is_ever_issued(self):
         """The default base URL is a shared public server; there must be no write path."""
         methods = []

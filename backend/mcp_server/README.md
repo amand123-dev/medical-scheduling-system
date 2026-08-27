@@ -47,8 +47,19 @@ Two groups, deliberately kept in separate namespaces.
 
 These read a standard FHIR R4 endpoint — the HAPI public test server by
 default. FHIR is the standard and Epic is one implementation of it, so nothing
-here is Epic-specific: pointing `FHIR_BASE_URL` at an Epic sandbox, a local
-HAPI loaded with Synthea bundles, or any other R4 server works unchanged.
+here is Epic-specific: the resource model, search semantics, error handling and
+projections carry over to any R4 server. Pointing `FHIR_BASE_URL` at another
+open server — a local HAPI loaded with Synthea bundles, for instance — works
+unchanged.
+
+**Reaching Epic needs more than a base URL.** This client authenticates to
+nothing; the only header it sends is an `Accept`. That is all the public HAPI
+server wants, but Epic requires SMART-on-FHIR / OAuth2 bearer tokens, so an
+Epic sandbox would return 401 on the first call. A real connection also needs a
+patient-id mapping (see the identifier boundary below), registered client
+credentials, and a BAA. None of those are built here, and the missing auth is
+deliberate: there is no role gate on these tools either (see below), which is
+safe only while the target holds synthetic records belonging to no one.
 
 Three properties are enforced in `fhir.py` rather than left to each tool:
 
@@ -68,6 +79,13 @@ from the HTTP status — a bare 404 loses the reason, and FHIR servers return a
 **Identifier boundary:** FHIR resource ids are a *different namespace* from
 this practice's `patient_uuid`. They are never equal and are never mapped to
 each other. The scheduler's UUIDs are never sent to an external FHIR server.
+
+**No role gate.** The scheduler tools authenticate to this practice's API and
+inherit its role checks. The FHIR tools do not go through that API at all —
+they call the external server directly, so no role is checked and nothing is
+audited. Against a public server of synthetic strangers there is nothing to
+gate. Repointing `FHIR_BASE_URL` at real clinical data would silently produce
+an ungated clinical read path, which is the second reason not to do it.
 
 **Why these are not merged into `get_patient_context`:** that tool is governed
 by the scheduler's role checks and writes `identity_access_log`. None of that

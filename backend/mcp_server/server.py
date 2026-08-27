@@ -27,6 +27,8 @@ from mcp_server import fhir
 
 API_URL = os.environ.get("SCHEDULER_API_URL", "http://localhost:8000").rstrip("/")
 API_TOKEN = os.environ.get("SCHEDULER_API_TOKEN", "")
+API_USERNAME = os.environ.get("SCHEDULER_USERNAME", "")
+API_PASSWORD = os.environ.get("SCHEDULER_PASSWORD", "")
 TIMEOUT = float(os.environ.get("SCHEDULER_API_TIMEOUT", "30"))
 
 mcp = MCPServer(
@@ -50,18 +52,49 @@ mcp = MCPServer(
 )
 
 
-def _headers() -> dict[str, str]:
-    if not API_TOKEN:
+# Access tokens expire after an hour. An MCP server is long-lived and starts once,
+# so a token pasted into the client config would stop working mid-session. When
+# credentials are supplied the server logs in for itself and re-authenticates on
+# the first 401, which keeps the client config durable.
+_cached_token: str | None = API_TOKEN or None
+
+
+async def _login() -> str:
+    if not (API_USERNAME and API_PASSWORD):
         raise RuntimeError(
-            "SCHEDULER_API_TOKEN is not set. Obtain a staff token from POST /auth/login "
-            "and export it before starting the MCP server."
+            "No usable credentials. Set SCHEDULER_USERNAME and SCHEDULER_PASSWORD "
+            "(preferred -- the server then refreshes its own token), or set "
+            "SCHEDULER_API_TOKEN to a token from POST /auth/login."
         )
-    return {"Authorization": f"Bearer {API_TOKEN}"}
+    async with httpx.AsyncClient(timeout=TIMEOUT) as client:
+        resp = await client.post(
+            f"{API_URL}/auth/login",
+            json={"username": API_USERNAME, "password": API_PASSWORD},
+        )
+    if resp.status_code != 200:
+        raise RuntimeError(f"Login to {API_URL} failed ({resp.status_code}).")
+    return resp.json()["access_token"]
+
+
+async def _token() -> str:
+    global _cached_token
+    if _cached_token is None:
+        _cached_token = await _login()
+    return _cached_token
+
+
+async def _headers() -> dict[str, str]:
+    return {"Authorization": f"Bearer {await _token()}"}
 
 
 async def _get(path: str, params: dict[str, Any] | None = None) -> Any:
+    global _cached_token
     async with httpx.AsyncClient(timeout=TIMEOUT) as client:
-        resp = await client.get(f"{API_URL}{path}", params=params, headers=_headers())
+        resp = await client.get(f"{API_URL}{path}", params=params, headers=await _headers())
+        if resp.status_code == 401 and API_USERNAME and API_PASSWORD:
+            # Token expired mid-session: get a fresh one and retry exactly once.
+            _cached_token = None
+            resp = await client.get(f"{API_URL}{path}", params=params, headers=await _headers())
     if resp.status_code == 403:
         return {
             "error": "forbidden",

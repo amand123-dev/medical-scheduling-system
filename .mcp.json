@@ -1,0 +1,15 @@
+{
+  "mcpServers": {
+    "smallpractice-scheduler": {
+      "command": "backend/.venv-mcp/bin/python",
+      "args": ["-m", "mcp_server.server"],
+      "env": {
+        "PYTHONPATH": "backend",
+        "SCHEDULER_API_URL": "${SCHEDULER_API_URL:-http://localhost:8000}",
+        "SCHEDULER_USERNAME": "${SCHEDULER_USERNAME}",
+        "SCHEDULER_PASSWORD": "${SCHEDULER_PASSWORD}",
+        "FHIR_BASE_URL": "${FHIR_BASE_URL:-https://hapi.fhir.org/baseR4}"
+      }
+    }
+  }
+}

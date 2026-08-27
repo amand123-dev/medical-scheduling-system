@@ -591,52 +591,47 @@ async def find_next_available(
 
 
 async def get_dashboard_metrics(session: AsyncSession, days: int = 30) -> dict:
+    """Rolling practice metrics for the dashboard.
+
+    The window is keyed on ``start_time`` -- when the appointment actually
+    happens -- not ``created_at``. Keying on ``created_at`` makes every card read
+    0% against a dataset that was loaded in one batch and then left alone: all
+    the rows share a single creation timestamp, so the window empties the moment
+    that timestamp ages past the cutoff, no matter how much data is present.
+
+    The window has no upper bound. Upcoming scheduled appointments belong in the
+    fill-rate denominator, which is what the card claims to show.
+    """
     cutoff = datetime.now(UTC) - timedelta(days=days)
 
-    total_q = await session.execute(
-        select(func.count()).where(
-            and_(
-                Appointment.created_at >= cutoff,
-                Appointment.status.in_([AppointmentStatus.completed, AppointmentStatus.scheduled]),
-            )
-        )
-    )
-    total = total_q.scalar_one()
+    async def _count(*conditions) -> int:
+        result = await session.execute(select(func.count()).where(and_(*conditions)))
+        return result.scalar_one()
 
-    completed_q = await session.execute(
-        select(func.count()).where(
-            and_(
-                Appointment.created_at >= cutoff,
-                Appointment.status == AppointmentStatus.completed,
-            )
-        )
-    )
-    completed = completed_q.scalar_one()
+    in_window = Appointment.start_time >= cutoff
 
-    booked_q = await session.execute(
-        select(func.count()).where(
-            and_(
-                Appointment.created_at >= cutoff,
-                Appointment.status.in_([AppointmentStatus.completed, AppointmentStatus.no_show]),
-            )
-        )
+    # Fill rate: of the appointments in the window that were not missed, how many
+    # have already been seen. Upcoming ones sit in the denominator until they do.
+    total = await _count(
+        in_window,
+        Appointment.status.in_([AppointmentStatus.completed, AppointmentStatus.scheduled]),
     )
-    booked = booked_q.scalar_one()
+    completed = await _count(in_window, Appointment.status == AppointmentStatus.completed)
 
-    no_show_q = await session.execute(
-        select(func.count()).where(
-            and_(
-                Appointment.created_at >= cutoff,
-                Appointment.status == AppointmentStatus.no_show,
-            )
-        )
+    # No-show rate is measured against resolved appointments only; an appointment
+    # that has not happened yet cannot have been missed.
+    booked = await _count(
+        in_window,
+        Appointment.status.in_([AppointmentStatus.completed, AppointmentStatus.no_show]),
     )
-    no_shows = no_show_q.scalar_one()
+    no_shows = await _count(in_window, Appointment.status == AppointmentStatus.no_show)
 
-    recovered_q = await session.execute(
-        select(func.count()).where(WaitlistEntry.status == WaitlistStatus.booked)
+    # Windowed for consistency with the other three cards, which all sit under a
+    # single "rolling N days" heading.
+    recovered = await _count(
+        WaitlistEntry.status == WaitlistStatus.booked,
+        WaitlistEntry.requested_at >= cutoff,
     )
-    recovered = recovered_q.scalar_one()
 
     return {
         "fill_rate": completed / total if total > 0 else 0.0,

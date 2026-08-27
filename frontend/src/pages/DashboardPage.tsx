@@ -103,7 +103,7 @@ export function DashboardPage() {
 
       {!isLoading && data && (
         <>
-          <p className="text-xs text-gray-400 mb-4">Rolling {data.days} days</p>
+          <p className="text-xs text-gray-400 mb-4">Last {data.days} days, plus upcoming</p>
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-4">
             <MetricCard
               label="Fill Rate"

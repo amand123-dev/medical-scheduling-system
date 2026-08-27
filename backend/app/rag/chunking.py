@@ -69,4 +69,8 @@ def deidentify(text: str, patient_uuid: uuid.UUID, names: list[str]) -> str:
     out = text
     for name in sorted((n for n in names if n and len(n) > 2), key=len, reverse=True):
         out = re.sub(rf"\b{re.escape(name)}\b", token, out, flags=re.IGNORECASE)
-    return out
+    # Given/family names are replaced independently, so "Jane Doe" leaves two
+    # adjacent identical tokens. Collapse runs into one -- purely cosmetic, and
+    # safe because everything being merged is already redacted.
+    escaped = re.escape(token)
+    return re.sub(rf"{escaped}(?:\s+{escaped})+", token, out)

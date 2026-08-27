@@ -66,6 +66,24 @@ class TestDeidentification:
         out = deidentify("MARGARET and Margaret Thompson", pid, ["Margaret", "Margaret Thompson"])
         assert "argaret" not in out
 
+    def test_collapses_the_token_run_left_by_a_full_name(self):
+        # Regression: seeded documents rendered "[patient:uuid] [patient:uuid]
+        # attended a consultation" because given and family names are replaced
+        # independently. Providers read this text, so the run is collapsed.
+        pid = uuid.uuid4()
+        out = deidentify("Jane Doe attended a consultation.", pid, ["Jane", "Doe"])
+        assert out == f"[patient:{pid}] attended a consultation."
+
+    def test_collapses_runs_longer_than_two(self):
+        pid = uuid.uuid4()
+        out = deidentify("Mary Jane Doe arrived.", pid, ["Mary", "Jane", "Doe"])
+        assert out == f"[patient:{pid}] arrived."
+
+    def test_does_not_merge_tokens_separated_by_other_words(self):
+        pid = uuid.uuid4()
+        out = deidentify("Jane called; Doe confirmed.", pid, ["Jane", "Doe"])
+        assert out == f"[patient:{pid}] called; [patient:{pid}] confirmed."
+
     def test_leaves_unrelated_words_alone(self):
         pid = uuid.uuid4()
         out = deidentify("The patient reported pain.", pid, ["Jane"])

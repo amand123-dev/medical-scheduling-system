@@ -39,6 +39,21 @@ function PassageCard({ passage, index }: { passage: Passage; index: number }) {
   );
 }
 
+function failureMessage(e: unknown, action: "Search" | "Summarising"): string {
+  // The old text blamed the user's role for every failure, including timeouts
+  // and cold starts. A 403 is handled separately; everything reaching here is
+  // something else, and saying "role required" sends people to re-login for a
+  // problem re-logging in cannot fix.
+  const status = (e as { response?: { status?: number } })?.response?.status;
+  const code = (e as { code?: string })?.code;
+  if (status === 401) return `${action} failed: your session expired. Sign in again.`;
+  if (status === 429) return `${action} failed: rate limit reached. Try again shortly.`;
+  if (code === "ECONNABORTED") return `${action} timed out. The server may be waking up — try again.`;
+  if (status === undefined) return `${action} failed: could not reach the server.`;
+  if (status >= 500) return `${action} failed: server error (${status}).`;
+  return `${action} failed (${status}).`;
+}
+
 export function PatientContextModal({ uuid, onClose }: Props) {
   const [query, setQuery] = useState("");
   const [loading, setLoading] = useState<"search" | "summarise" | null>(null);
@@ -68,8 +83,8 @@ export function PatientContextModal({ uuid, onClose }: Props) {
       const result = await fetchPatientContext(uuid, trimmed);
       setPassages(result.passages);
       setSearched(trimmed);
-    } catch {
-      setError("Retrieval failed. Admin or provider role required.");
+    } catch (e: unknown) {
+      setError(failureMessage(e, "Search"));
     } finally {
       setLoading(null);
     }
@@ -91,7 +106,7 @@ export function PatientContextModal({ uuid, onClose }: Props) {
       if (status === 403) {
         setGenerationBlocked(true);
       } else {
-        setError("Summarising failed. Admin or provider role required.");
+        setError(failureMessage(e, "Summarising"));
       }
     } finally {
       setLoading(null);

@@ -1,7 +1,5 @@
-import json
 import uuid
 from datetime import UTC, datetime
-from pathlib import Path
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import and_, func, select
@@ -285,8 +283,6 @@ async def get_no_show_risk(
 
 # --- ML risk by patient UUID (demo-only, reads sidecar JSON) ---
 
-_PROFILES_PATH = Path(__file__).resolve().parents[2] / "data" / "demo_patient_profiles.json"
-
 
 @router.get("/scorer/ml-risk/{patient_uuid}", response_model=MLRiskResponse)
 async def get_ml_no_show_risk(
@@ -294,17 +290,12 @@ async def get_ml_no_show_risk(
     session: AsyncSession = Depends(get_session),
     _user: StaffUser = Depends(get_current_user),
 ):
+    from app.scorer.ml import demo_profile
     from app.scorer.ml import predict as ml_predict_fn
 
-    if not _PROFILES_PATH.exists():
-        raise HTTPException(
-            status_code=503,
-            detail="Demo profiles not found. Run scripts/seed_synthetic.py first.",
-        )
-    profiles = json.loads(_PROFILES_PATH.read_text())
-    profile = profiles.get(str(patient_uuid))
-    if profile is None:
-        raise HTTPException(status_code=404, detail="No demo profile for this patient.")
+    # Derived from the UUID rather than read from a seeded file, so it survives
+    # a re-seed (which mints new UUIDs) and Fly's ephemeral disk. See ml.py.
+    profile = demo_profile(str(patient_uuid))
 
     # Compute wait_days from next scheduled appointment, else most recent appointment
     result = await session.execute(

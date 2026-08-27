@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useAuthStore } from "../../store/auth";
 import { IdentityLookupModal } from "./IdentityLookupModal";
+import { PatientContextModal } from "./PatientContextModal";
 
 interface Props {
   uuid: string;
@@ -10,6 +11,7 @@ interface Props {
 export function PatientUUID({ uuid, label = "Patient" }: Props) {
   const [showFull, setShowFull] = useState(false);
   const [showLookup, setShowLookup] = useState(false);
+  const [showContext, setShowContext] = useState(false);
   const role = useAuthStore((s) => s.role);
   const canLookup = role === "admin" || role === "provider";
   const short = uuid.slice(0, 8);
@@ -40,10 +42,23 @@ export function PatientUUID({ uuid, label = "Patient" }: Props) {
             Resolve
           </button>
         )}
+        {canLookup && (
+          <button
+            onClick={() => setShowContext(true)}
+            className="text-xs text-blue-500 hover:text-blue-700 opacity-0 group-hover:opacity-100 transition-opacity"
+            title="Search this patient's documents (will be audit-logged)"
+          >
+            Context
+          </button>
+        )}
       </span>
 
       {showLookup && (
         <IdentityLookupModal uuid={uuid} onClose={() => setShowLookup(false)} />
+      )}
+
+      {showContext && (
+        <PatientContextModal uuid={uuid} onClose={() => setShowContext(false)} />
       )}
     </>
   );

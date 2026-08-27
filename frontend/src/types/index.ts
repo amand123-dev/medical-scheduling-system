@@ -159,3 +159,10 @@ export interface ProtocolSearchResponse {
   query: string;
   passages: Passage[];
 }
+
+export interface PatientContextResponse {
+  patient_uuid: string;
+  query: string;
+  passages: Passage[];
+  audit_logged: boolean;
+}

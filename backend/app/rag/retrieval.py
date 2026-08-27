@@ -21,6 +21,7 @@ from app.rag.embeddings import cosine_similarity, get_embedder
 from app.rag.models import PatientDocumentChunk, ProtocolChunk
 
 RAG_RETRIEVAL_ACTION = "rag_retrieval"
+RAG_GENERATION_ACTION = "rag_generation"
 
 
 @dataclass
@@ -157,3 +158,23 @@ async def search_patient_documents(
     )
     await session.commit()
     return passages
+
+
+async def log_generation_access(
+    session: AsyncSession, patient_uuid: uuid.UUID, accessed_by: uuid.UUID
+) -> None:
+    """
+    Record that a patient's passages were sent to an external model.
+
+    Deliberately a separate action from rag_retrieval: reading a chart in the
+    UI and shipping it to a third party are different events, and an audit
+    trail that cannot tell them apart is not much of an audit trail.
+    """
+    session.add(
+        IdentityAccessLog(
+            patient_uuid=patient_uuid,
+            accessed_by=accessed_by,
+            action=RAG_GENERATION_ACTION,
+        )
+    )
+    await session.commit()

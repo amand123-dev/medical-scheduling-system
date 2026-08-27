@@ -266,12 +266,26 @@ def build_documents(first: str, last: str) -> list[tuple[str, str, str]]:
         )
 
     if random.random() < 0.25:
+        # A missed appointment is a DIFFERENT appointment from the one
+        # summarised above. Formatting this from `common` reused the same date,
+        # provider and visit type, so the patient ended up with one document
+        # saying they attended and another saying they did not attend the very
+        # same visit. Anything reading the whole chart -- a person or a
+        # summariser -- rightly flags that as a contradiction.
+        missed_type, _, _ = random.choice(VISIT_TYPES)
         docs.append(
             (
                 "missed-appointment",
                 "missed_appointment",
                 MISSED_NOTE.format(
-                    **common,
+                    first=first,
+                    last=last,
+                    visit_type=missed_type,
+                    visit_type_lower=missed_type.lower(),
+                    provider=random.choice(PROVIDERS),
+                    # Strictly earlier than the summarised visit, so the two
+                    # documents describe a coherent sequence of events.
+                    date=_date(days_ago + random.randint(20, 120)),
                     reason=random.choice(MISS_REASONS),
                     outreach=random.choice(OUTREACH),
                 ),

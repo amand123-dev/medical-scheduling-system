@@ -40,6 +40,9 @@ class Settings(BaseSettings):
     generation_max_tokens: int = 1024
     protocol_generation_enabled: bool = True
     patient_generation_enabled: bool = False
+    # Per-user cap on generation calls per hour. The deployed demo is public,
+    # and every generated answer costs money. 0 disables the check.
+    generation_rate_limit_per_hour: int = 60
 
     matcher_w1: float = 1.0
     matcher_w2: float = 0.5

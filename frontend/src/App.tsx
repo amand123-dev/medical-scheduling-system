@@ -8,6 +8,7 @@ import { DashboardPage } from "./pages/DashboardPage";
 import { SettingsPage } from "./pages/SettingsPage";
 import { AuditLogPage } from "./pages/AuditLogPage";
 import { OutreachLogPage } from "./pages/OutreachLogPage";
+import { ProtocolSearchPage } from "./pages/ProtocolSearchPage";
 import { PatientLoginPage } from "./pages/patient/PatientLoginPage";
 import { PatientRegisterPage } from "./pages/patient/PatientRegisterPage";
 import { PatientDashboard } from "./pages/patient/PatientDashboard";
@@ -98,6 +99,7 @@ function Layout() {
         <NavLink to="/waitlist">Waitlist</NavLink>
         <NavLink to="/outreach">Outreach Log</NavLink>
         <NavLink to="/dashboard">Dashboard</NavLink>
+        <NavLink to="/protocols">Protocols</NavLink>
         {isAdmin && <NavLink to="/settings">Settings</NavLink>}
         {isAdmin && <NavLink to="/audit-log">Audit Log</NavLink>}
         <div className="ml-auto flex items-center gap-3 text-sm text-gray-500">
@@ -116,6 +118,7 @@ function Layout() {
           <Route path="/waitlist" element={<WaitlistPage />} />
           <Route path="/outreach" element={<OutreachLogPage />} />
           <Route path="/dashboard" element={<DashboardPage />} />
+          <Route path="/protocols" element={<ProtocolSearchPage />} />
           <Route
             path="/settings"
             element={

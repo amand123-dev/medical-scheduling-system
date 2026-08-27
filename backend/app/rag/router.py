@@ -6,7 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.auth.dependencies import get_current_user, require_role
 from app.config import settings as app_settings
 from app.database import get_session
-from app.rag import generation, retrieval
+from app.rag import generation, ratelimit, retrieval
 from app.rag.schemas import (
     AskRequest,
     PassageResponse,
@@ -18,6 +18,17 @@ from app.rag.schemas import (
 from app.scheduling.models import StaffRole, StaffUser
 
 router = APIRouter(prefix="/rag", tags=["retrieval"])
+
+
+def _enforce_rate_limit(user: StaffUser) -> None:
+    """Raise 429 if this user has exhausted their hourly generation budget."""
+    retry_after = ratelimit.check(str(user.id), app_settings.generation_rate_limit_per_hour)
+    if retry_after is not None:
+        raise HTTPException(
+            status.HTTP_429_TOO_MANY_REQUESTS,
+            "Generation rate limit reached. Retrieval is unaffected.",
+            headers={"Retry-After": str(retry_after)},
+        )
 
 
 @router.get("/protocols/search", response_model=ProtocolSearchResponse)
@@ -82,6 +93,7 @@ async def ask_protocols(
             "Protocol answering is disabled. Retrieval remains available at "
             "GET /rag/protocols/search.",
         )
+    _enforce_rate_limit(_user)
     passages = await retrieval.search_protocols(session, body.q, body.k or app_settings.rag_top_k)
     client = generation.get_client()
     answer, error = await generation.safe_answer(body.q, passages, client=client)
@@ -124,6 +136,8 @@ async def ask_patient_context(
             "zero-retention terms; retrieval remains available at "
             "GET /rag/patients/{patient_uuid}/context.",
         )
+
+    _enforce_rate_limit(user)
 
     # Retrieval writes its own identity_access_log row and enforces the
     # patient_uuid pre-filter. Going through it keeps one code path for both.

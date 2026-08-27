@@ -10,11 +10,13 @@ Produces realistic dashboard metrics:
 
 import asyncio
 import json
+import os
 import random
 import sys
 import uuid
 from datetime import datetime, timedelta
 from pathlib import Path
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 import bcrypt as _bcrypt
 from faker import Faker
@@ -37,6 +39,29 @@ from app.scheduling.models import (
 
 fake = Faker()
 random.seed(42)
+
+
+def clinic_now() -> datetime:
+    """
+    'Now' in the clinic's wall-clock timezone.
+
+    WORK_HOURS are clinic-local hours, and the scheduling engine resolves them
+    against a caller-supplied tz_offset. Seeding therefore has to anchor to the
+    clinic's timezone, not the seeding machine's: running this inside a UTC
+    container (Fly) stored 8 AM as 08:00Z, which a browser in New York draws at
+    4 AM -- outside the work-hours band the same rows claim to sit in.
+
+    Set SEED_TIMEZONE to an IANA name (e.g. America/New_York). Defaults to the
+    local machine, which is the right answer when seeding from a laptop.
+    """
+    name = os.environ.get("SEED_TIMEZONE", "").strip()
+    if not name:
+        return datetime.now().astimezone()
+    try:
+        return datetime.now(ZoneInfo(name))
+    except (ZoneInfoNotFoundError, ValueError):
+        print(f"  ! SEED_TIMEZONE={name!r} is not a known IANA timezone; using machine local.")
+        return datetime.now().astimezone()
 
 
 def _hash(plain: str) -> str:
@@ -152,9 +177,9 @@ async def seed():
         # 55 past: 48 completed, 7 no_show, 0 cancelled  →  fill=48/(48+10)=82.8%
         # 10 future scheduled                             →  no_show=7/(48+7)=12.7%
         print("Seeding past appointments (48 completed, 7 no-show)...")
-        # Use local timezone so seeded appointment hours look realistic in the
-        # browser (8 AM local → stored as UTC equivalent → displayed as 8 AM local).
-        now = datetime.now().astimezone()
+        # Anchor to the clinic's timezone so seeded hours look realistic in the
+        # browser (8 AM clinic-local → stored as UTC → displayed as 8 AM local).
+        now = clinic_now()
         booked_slots: set[tuple[str, int, int]] = set()  # (provider_id, day_offset, hour)
 
         def pick_slot(provider_id: str, max_past: int = 29) -> tuple[int, int] | None:

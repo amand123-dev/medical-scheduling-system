@@ -3,8 +3,15 @@ FHIR R4 client for the MCP server.
 
 Talks to any FHIR R4 base URL — the HAPI public test server by default, or a
 locally-run HAPI loaded with Synthea bundles. FHIR is the standard; Epic is one
-implementation of it, so nothing here is Epic-specific and the same tools work
-against an Epic sandbox by changing FHIR_BASE_URL.
+implementation of it, so nothing here is Epic-specific: the resource model,
+search semantics, OperationOutcome handling and projections all carry over.
+
+This client authenticates to nothing. The only header it sends is an Accept,
+which is all the public HAPI server wants. Epic and other real deployments
+require SMART-on-FHIR / OAuth2 bearer tokens, so changing FHIR_BASE_URL alone
+is NOT enough to reach one -- it would 401 on the first call. A real connection
+additionally needs that auth flow, a patient-id mapping (see the identifier
+boundary below), registered client credentials, and a BAA.
 
 Three constraints are enforced in this module rather than left to the caller:
 
@@ -270,8 +277,19 @@ async def get_resources_for_patient(
 
     patient= is a server-side filter, so the bundle never contains another
     patient's resources to be filtered out client-side.
+
+    That guarantee depends on the filter actually being sent. httpx drops
+    params whose value is None, so a missing id would silently degrade this
+    into an unscoped search returning arbitrary patients' clinical records --
+    the same shape of failure the scheduler's own patient RAG prevents with a
+    hard SQL pre-filter. Refuse before the network call instead.
     """
     check_scope(resource_type)
+    if not fhir_patient_id or not str(fhir_patient_id).strip():
+        raise FhirError(
+            f"A FHIR patient id is required to search {resource_type}. Without one the "
+            "request would return other patients' records."
+        )
     params: dict[str, Any] = {"patient": fhir_patient_id, "_count": min(count, FHIR_MAX_COUNT)}
     params.update(extra or {})
     bundle = await _get(f"/{resource_type}", params, client)

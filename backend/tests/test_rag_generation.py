@@ -432,3 +432,103 @@ class TestProviderFailureDegrades:
             .all()
         )
         assert retrieval.RAG_GENERATION_ACTION in actions
+
+
+class TestGenerationRateLimit:
+    """
+    The deployed demo is public and its seeded credentials are in a public
+    repo, so a loop against /ask spends real money. This is a brake, not the
+    real control -- that is the provider-side spend limit.
+    """
+
+    @pytest.fixture(autouse=True)
+    def clear_counters(self):
+        from app.rag import ratelimit
+
+        ratelimit.reset()
+        yield
+        ratelimit.reset()
+
+    async def test_returns_429_once_the_budget_is_spent(
+        self,
+        client: AsyncClient,
+        auth_headers: dict,
+        session: AsyncSession,
+        stub: StubClient,
+        monkeypatch,
+    ):
+        monkeypatch.setattr(settings, "generation_rate_limit_per_hour", 3)
+        await ingest_protocol_dir(session)
+        codes = [
+            (
+                await client.post(
+                    "/rag/protocols/ask", json={"q": "offer window"}, headers=auth_headers
+                )
+            ).status_code
+            for _ in range(5)
+        ]
+        assert codes == [200, 200, 200, 429, 429]
+
+    async def test_429_carries_retry_after(
+        self,
+        client: AsyncClient,
+        auth_headers: dict,
+        session: AsyncSession,
+        stub: StubClient,
+        monkeypatch,
+    ):
+        monkeypatch.setattr(settings, "generation_rate_limit_per_hour", 1)
+        await ingest_protocol_dir(session)
+        await client.post("/rag/protocols/ask", json={"q": "offer"}, headers=auth_headers)
+        resp = await client.post("/rag/protocols/ask", json={"q": "offer"}, headers=auth_headers)
+        assert resp.status_code == 429
+        assert int(resp.headers["retry-after"]) > 0
+
+    async def test_retrieval_is_unaffected_by_the_generation_limit(
+        self,
+        client: AsyncClient,
+        auth_headers: dict,
+        session: AsyncSession,
+        stub: StubClient,
+        monkeypatch,
+    ):
+        """Search costs nothing, so exhausting the generation budget must not block it."""
+        monkeypatch.setattr(settings, "generation_rate_limit_per_hour", 1)
+        await ingest_protocol_dir(session)
+        for _ in range(3):
+            await client.post("/rag/protocols/ask", json={"q": "offer"}, headers=auth_headers)
+        resp = await client.get(
+            "/rag/protocols/search", params={"q": "offer window"}, headers=auth_headers
+        )
+        assert resp.status_code == 200
+        assert resp.json()["passages"]
+
+    async def test_a_blocked_call_never_reaches_the_model(
+        self,
+        client: AsyncClient,
+        auth_headers: dict,
+        session: AsyncSession,
+        stub: StubClient,
+        monkeypatch,
+    ):
+        monkeypatch.setattr(settings, "generation_rate_limit_per_hour", 2)
+        await ingest_protocol_dir(session)
+        for _ in range(6):
+            await client.post("/rag/protocols/ask", json={"q": "offer"}, headers=auth_headers)
+        assert len(stub.calls) == 2, "blocked requests still spent money"
+
+    async def test_zero_disables_the_check(
+        self,
+        client: AsyncClient,
+        auth_headers: dict,
+        session: AsyncSession,
+        stub: StubClient,
+        monkeypatch,
+    ):
+        monkeypatch.setattr(settings, "generation_rate_limit_per_hour", 0)
+        await ingest_protocol_dir(session)
+        for _ in range(8):
+            resp = await client.post(
+                "/rag/protocols/ask", json={"q": "offer"}, headers=auth_headers
+            )
+            assert resp.status_code == 200

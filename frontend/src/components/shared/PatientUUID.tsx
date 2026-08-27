@@ -36,7 +36,7 @@ export function PatientUUID({ uuid, label = "Patient" }: Props) {
         {canLookup && (
           <button
             onClick={() => setShowLookup(true)}
-            className="text-xs text-blue-500 hover:text-blue-700 opacity-0 group-hover:opacity-100 transition-opacity ml-0.5"
+            className="text-xs px-1.5 py-0.5 rounded border border-blue-200 text-blue-600 hover:bg-blue-50 hover:text-blue-800 transition-colors ml-1"
             title="Resolve patient name (will be audit-logged)"
           >
             Resolve
@@ -45,10 +45,10 @@ export function PatientUUID({ uuid, label = "Patient" }: Props) {
         {canLookup && (
           <button
             onClick={() => setShowContext(true)}
-            className="text-xs text-blue-500 hover:text-blue-700 opacity-0 group-hover:opacity-100 transition-opacity"
-            title="Search this patient's documents (will be audit-logged)"
+            className="text-xs px-1.5 py-0.5 rounded border border-blue-200 text-blue-600 hover:bg-blue-50 hover:text-blue-800 transition-colors"
+            title="Search or summarise this patient's documents (will be audit-logged)"
           >
-            Context
+            Documents
           </button>
         )}
       </span>

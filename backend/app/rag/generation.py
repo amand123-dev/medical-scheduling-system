@@ -22,10 +22,13 @@ already entitled to.
 
 from __future__ import annotations
 
+import logging
 from typing import Protocol
 
 from app.config import settings
 from app.rag.retrieval import Passage
+
+logger = logging.getLogger(__name__)
 
 GROUNDED_SYSTEM = """You answer questions for clinic staff using ONLY the \
 numbered passages provided. These passages are the entire basis for your answer.
@@ -123,3 +126,27 @@ async def answer(
     return await client.complete(
         system, build_prompt(question, passages), settings.generation_max_tokens
     )
+
+
+async def safe_answer(
+    question: str,
+    passages: list[Passage],
+    *,
+    system: str = GROUNDED_SYSTEM,
+    client: LLMClient | None = None,
+) -> tuple[str | None, str | None]:
+    """
+    answer(), but a provider failure degrades instead of 500ing.
+
+    An invalid key, a rate limit, or an outage must not take the passages down
+    with it -- retrieval is the product and generation sits on top of it. The
+    error is returned rather than swallowed so the caller can say "the answer
+    is unavailable" instead of the misleading "generation is not configured".
+    """
+    try:
+        return await answer(question, passages, system=system, client=client), None
+    except Exception as exc:  # noqa: BLE001 - any provider failure degrades the same way
+        # Logged with a traceback server-side; the message returned to the
+        # caller is deliberately short and carries no request content.
+        logger.exception("Answer generation failed")
+        return None, type(exc).__name__

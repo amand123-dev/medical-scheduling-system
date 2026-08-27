@@ -84,13 +84,14 @@ async def ask_protocols(
         )
     passages = await retrieval.search_protocols(session, body.q, body.k or app_settings.rag_top_k)
     client = generation.get_client()
-    answer = await generation.answer(body.q, passages, client=client)
+    answer, error = await generation.safe_answer(body.q, passages, client=client)
     return ProtocolAnswerResponse(
         query=body.q,
         answer=answer,
         passages=[PassageResponse(**p.as_dict()) for p in passages],
         model=app_settings.generation_model if client else None,
-        generated=client is not None,
+        generated=client is not None and error is None,
+        generation_error=error,
     )
 
 
@@ -134,10 +135,12 @@ async def ask_patient_context(
         k=body.k or app_settings.rag_top_k,
     )
     client = generation.get_client()
-    answer = await generation.answer(
+    answer, error = await generation.safe_answer(
         body.q, passages, system=generation.PATIENT_SYSTEM, client=client
     )
 
+    # A failed call still left the process, so it is still logged as sent. An
+    # audit trail that only records successes is not an audit trail.
     sent = client is not None and bool(passages)
     if sent:
         await retrieval.log_generation_access(session, patient_uuid, user.id)
@@ -148,6 +151,7 @@ async def ask_patient_context(
         answer=answer,
         passages=[PassageResponse(**p.as_dict()) for p in passages],
         model=app_settings.generation_model if client else None,
-        generated=client is not None,
+        generated=client is not None and error is None,
+        generation_error=error,
         sent_to_external_model=sent,
     )

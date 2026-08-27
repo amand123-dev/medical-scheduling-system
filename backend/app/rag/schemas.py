@@ -37,9 +37,13 @@ class ProtocolAnswerResponse(BaseModel):
     answer: str | None
     passages: list[PassageResponse]
     model: str | None = None
-    # False when no API key is configured. The passages are still returned, so
-    # the caller degrades to plain retrieval rather than failing.
+    # False when no API key is configured, or when the call to the model
+    # failed. The passages are still returned either way, so the caller
+    # degrades to plain retrieval rather than failing.
     generated: bool = True
+    # Exception class name when generation was attempted and failed, so the UI
+    # can distinguish "not configured" from "broken". Never carries content.
+    generation_error: str | None = None
 
 
 class PatientAnswerResponse(ProtocolAnswerResponse):

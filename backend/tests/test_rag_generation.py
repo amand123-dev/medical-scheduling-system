@@ -351,3 +351,84 @@ class TestPatientAskWhenEnabled:
         _system, prompt = stub.calls[0]
         assert "Patient A" in prompt
         assert "Patient B" not in prompt
+
+
+class TestProviderFailureDegrades:
+    """
+    An invalid key, a rate limit or an outage must not take retrieval down with
+    it. This is not hypothetical: the first production deploy of this feature
+    returned 500 on every request because the configured key was rejected.
+    """
+
+    @pytest.fixture
+    def failing(self, monkeypatch):
+        class Failing:
+            async def complete(self, system: str, user: str, max_tokens: int) -> str:
+                raise RuntimeError("API key is invalid.")
+
+        monkeypatch.setattr(settings, "anthropic_api_key", "bad-key")
+        monkeypatch.setattr(generation, "get_client", lambda: Failing())
+
+    async def test_protocol_ask_returns_200_with_passages(
+        self, client: AsyncClient, auth_headers: dict, session: AsyncSession, failing
+    ):
+        await ingest_protocol_dir(session)
+        resp = await client.post(
+            "/rag/protocols/ask", json={"q": "how long is an offer held"}, headers=auth_headers
+        )
+        assert resp.status_code == 200, "a bad key must not 500 the request"
+        body = resp.json()
+        assert body["answer"] is None
+        assert body["generated"] is False
+        assert body["generation_error"] == "RuntimeError"
+        assert body["passages"], "retrieval must survive a provider failure"
+
+    async def test_error_message_carries_no_request_content(
+        self, client: AsyncClient, auth_headers: dict, session: AsyncSession, failing
+    ):
+        """The field names an exception class; it must not echo prompts or keys."""
+        await ingest_protocol_dir(session)
+        body = (
+            await client.post(
+                "/rag/protocols/ask",
+                json={"q": "how long is an offer held"},
+                headers=auth_headers,
+            )
+        ).json()
+        assert "bad-key" not in str(body)
+        assert "invalid" not in body["generation_error"].lower()
+
+    async def test_failed_patient_call_is_still_audited_as_sent(
+        self,
+        client: AsyncClient,
+        auth_headers: dict,
+        session: AsyncSession,
+        failing,
+        patient_generation_on,
+    ):
+        """
+        The passages left the process before the call failed. An audit trail
+        that records only successes is not an audit trail.
+        """
+        patient = uuid.uuid4()
+        await ingest_patient_document(
+            session, patient, "d1", "visit_summary", "# Visit\n\nRoutine follow-up."
+        )
+        body = (
+            await client.post(
+                f"/rag/patients/{patient}/ask", json={"q": "follow-up"}, headers=auth_headers
+            )
+        ).json()
+        assert body["sent_to_external_model"] is True
+        actions = (
+            (
+                await session.execute(
+                    select(IdentityAccessLog.action).where(
+                        IdentityAccessLog.patient_uuid == patient
+                    )
+                )
+            )
+            .scalars()
+            .all()
+        )
+        assert retrieval.RAG_GENERATION_ACTION in actions

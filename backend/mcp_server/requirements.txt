@@ -1,0 +1,6 @@
+# The MCP server runs as its own process and its dependency set is deliberately
+# kept apart from the API's: the MCP SDK requires a newer Starlette than the
+# pinned FastAPI accepts, so installing them into one environment breaks the API.
+# Install these in a separate venv.
+mcp>=2.0.0
+httpx>=0.28.0

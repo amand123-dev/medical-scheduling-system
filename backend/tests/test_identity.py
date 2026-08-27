@@ -1,7 +1,7 @@
 import uuid
 
 from httpx import AsyncClient
-from sqlalchemy import select
+from sqlalchemy import select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.identity import crud
@@ -114,3 +114,55 @@ class TestIdentityAPI:
         )
         resp = await client.get(f"/identity/patients/{patient.patient_uuid}", headers=headers)
         assert resp.status_code == 403
+
+
+class TestPIIEncryptionAtRest:
+    async def test_pii_is_ciphertext_in_the_database(self, session: AsyncSession):
+        """Raw reads must not return plaintext — the encryption is real, not declared."""
+        await crud.create_patient(
+            session,
+            PatientCreate(
+                first_name="Encrypted",
+                last_name="Atrest",
+                dob="1988-11-02",
+                phone="555-0199",
+                email="cipher@example.com",
+            ),
+        )
+
+        # Bypass the ORM entirely — this is what someone with the database sees.
+        # (The fixture DB is function-scoped, so this patient is the only row.)
+        rows = (
+            (
+                await session.execute(
+                    text("SELECT first_name, last_name, dob, phone, email FROM patient_identity")
+                )
+            )
+            .mappings()
+            .all()
+        )
+        assert len(rows) == 1
+        row = rows[0]
+
+        stored = " ".join(row.values())
+        for plaintext in ("Encrypted", "Atrest", "1988-11-02", "555-0199", "cipher@example.com"):
+            assert plaintext not in stored
+
+    async def test_orm_round_trips_plaintext(self, session: AsyncSession):
+        """Ciphertext at rest, plaintext through the ORM."""
+        patient = await crud.create_patient(
+            session,
+            PatientCreate(
+                first_name="Round",
+                last_name="Trip",
+                dob="1991-07-04",
+                phone="555-0200",
+                email="round@example.com",
+            ),
+        )
+        fetched = await crud.get_patient(session, patient.patient_uuid, accessed_by=uuid.uuid4())
+        assert fetched.first_name == "Round"
+        assert fetched.last_name == "Trip"
+        assert fetched.dob == "1991-07-04"
+        assert fetched.phone == "555-0200"
+        assert fetched.email == "round@example.com"

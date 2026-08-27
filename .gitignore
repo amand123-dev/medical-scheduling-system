@@ -1,0 +1,22 @@
+# Python
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ruff_cache/
+.venv/
+venv/
+
+# Environment / secrets
+.env
+.env.local
+*.env
+!.env.example
+
+# OS
+.DS_Store
+
+# Eval run artifacts
+backend/evals/reports/
+
+# MCP server virtualenv (separate deps — see backend/mcp_server/requirements.txt)
+backend/.venv-mcp/

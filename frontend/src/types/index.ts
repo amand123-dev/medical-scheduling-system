@@ -146,3 +146,23 @@ export interface MLRiskScore {
   features_used: Record<string, number>;
   wait_days: number;
 }
+
+export interface Passage {
+  content: string;
+  source: string;
+  title: string;
+  chunk_index: number;
+  score: number;
+}
+
+export interface ProtocolSearchResponse {
+  query: string;
+  passages: Passage[];
+}
+
+export interface PatientContextResponse {
+  patient_uuid: string;
+  query: string;
+  passages: Passage[];
+  audit_logged: boolean;
+}

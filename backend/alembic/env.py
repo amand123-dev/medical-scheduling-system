@@ -5,6 +5,7 @@ from sqlalchemy.ext.asyncio import create_async_engine
 
 # Import all models so they register with Base.metadata
 import app.identity.models  # noqa: F401
+import app.rag.models  # noqa: F401
 import app.scheduling.models  # noqa: F401
 from alembic import context
 from app.config import settings

@@ -1,12 +1,13 @@
 import uuid
 from datetime import datetime
 
-from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy import select, text
+from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth.dependencies import get_current_patient
 from app.database import get_session
+from app.identity.models import PatientIdentity
 from app.matcher.engine import accept_offer, decline_offer
 from app.scheduling import crud
 from app.scheduling.models import (
@@ -55,6 +56,7 @@ async def patient_next_available(
     _current: PatientAccount = Depends(get_current_patient),
 ):
     from datetime import timedelta
+
     start = await crud.find_next_available(session, provider_id, visit_type_id, after, tz_offset)
     if start is None:
         raise HTTPException(status_code=404, detail="No available slot found in the next 60 days")
@@ -76,20 +78,21 @@ async def get_my_identity(
     current: PatientAccount = Depends(get_current_patient),
     session: AsyncSession = Depends(get_session),
 ):
+    # ORM read, not raw SQL — the PII columns are encrypted at rest and only
+    # the type decorator knows how to decrypt them.
     row = await session.execute(
-        text(
-            "SELECT first_name, last_name, dob, phone, email FROM identity.patient_identity "
-            "WHERE patient_uuid = :uuid"
-        ),
-        {"uuid": str(current.patient_uuid)},
+        select(PatientIdentity).where(PatientIdentity.patient_uuid == current.patient_uuid)
     )
-    identity = row.mappings().one_or_none()
+    identity = row.scalar_one_or_none()
     if identity is None:
         raise HTTPException(status_code=404, detail="Identity not found")
     return {
         "patient_uuid": str(current.patient_uuid),
         "email": current.email,
-        **dict(identity),
+        "first_name": identity.first_name,
+        "last_name": identity.last_name,
+        "dob": identity.dob,
+        "phone": identity.phone,
     }
 
 
@@ -144,6 +147,7 @@ async def cancel_my_appointment(
 
     appt = await crud.update_appointment_status(session, appt_id, AppointmentStatus.cancelled)
     from app.matcher.engine import backfill
+
     await backfill(session, appt)
     return appt
 
@@ -211,9 +215,7 @@ async def decline_my_offer(
 
 @public_router.get("/{token}/accept")
 async def confirm_via_token(token: uuid.UUID, session: AsyncSession = Depends(get_session)):
-    result = await session.execute(
-        select(WaitlistEntry).where(WaitlistEntry.offer_token == token)
-    )
+    result = await session.execute(select(WaitlistEntry).where(WaitlistEntry.offer_token == token))
     entry = result.scalar_one_or_none()
     if entry is None:
         raise HTTPException(status_code=404, detail="Link not found or already used")
@@ -221,19 +223,27 @@ async def confirm_via_token(token: uuid.UUID, session: AsyncSession = Depends(ge
         return {"status": entry.status, "message": "This offer has already been resolved."}
     appt = await accept_offer(session, entry.id, entry.patient_uuid)
     if appt is None:
-        return {"status": "expired", "message": "Sorry, this offer expired. A new one may be sent shortly."}
-    return {"status": "booked", "message": "Your appointment is confirmed!", "appointment_id": str(appt.id)}
+        return {
+            "status": "expired",
+            "message": "Sorry, this offer expired. A new one may be sent shortly.",
+        }
+    return {
+        "status": "booked",
+        "message": "Your appointment is confirmed!",
+        "appointment_id": str(appt.id),
+    }
 
 
 @public_router.get("/{token}/decline")
 async def decline_via_token(token: uuid.UUID, session: AsyncSession = Depends(get_session)):
-    result = await session.execute(
-        select(WaitlistEntry).where(WaitlistEntry.offer_token == token)
-    )
+    result = await session.execute(select(WaitlistEntry).where(WaitlistEntry.offer_token == token))
     entry = result.scalar_one_or_none()
     if entry is None:
         raise HTTPException(status_code=404, detail="Link not found or already used")
     if entry.status != WaitlistStatus.offered:
         return {"status": entry.status, "message": "This offer has already been resolved."}
     await decline_offer(session, entry.id)
-    return {"status": "declined", "message": "Got it — we'll offer this slot to the next person on the list."}
+    return {
+        "status": "declined",
+        "message": "Got it — we'll offer this slot to the next person on the list.",
+    }

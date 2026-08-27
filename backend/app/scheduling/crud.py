@@ -29,6 +29,11 @@ from app.scheduling.schemas import (
 from app.scorer.ratio import compute_no_show_risk
 
 
+def _as_utc(dt: datetime) -> datetime:
+    """Ensure dt is UTC-aware; SQLite returns naive datetimes in tests."""
+    return dt if dt.tzinfo is not None else dt.replace(tzinfo=UTC)
+
+
 async def list_providers(session: AsyncSession, active_only: bool = True) -> list[Provider]:
     q = select(Provider)
     if active_only:
@@ -316,22 +321,22 @@ async def create_schedule_block(session: AsyncSession, data: ScheduleBlockCreate
 async def create_schedule_blocks_bulk(
     session: AsyncSession, items: list[ScheduleBlockCreate]
 ) -> dict:
-    existing_q = await session.execute(
-        select(ScheduleBlock.start_date, ScheduleBlock.provider_id)
-    )
+    existing_q = await session.execute(select(ScheduleBlock.start_date, ScheduleBlock.provider_id))
     existing = {(row.provider_id, row.start_date) for row in existing_q}
 
     added = 0
     for item in items:
         key = (item.provider_id, item.start_date)
         if key not in existing:
-            session.add(ScheduleBlock(
-                id=uuid.uuid4(),
-                provider_id=item.provider_id,
-                start_date=item.start_date,
-                end_date=item.end_date,
-                reason=item.reason,
-            ))
+            session.add(
+                ScheduleBlock(
+                    id=uuid.uuid4(),
+                    provider_id=item.provider_id,
+                    start_date=item.start_date,
+                    end_date=item.end_date,
+                    reason=item.reason,
+                )
+            )
             added += 1
 
     if added > 0:
@@ -480,12 +485,20 @@ async def find_next_available(
 
     settings = await get_or_create_settings(session)
     duration = timedelta(minutes=vt.duration_minutes)
-    now = after or datetime.now(UTC)
+    now = _as_utc(after) if after else datetime.now(UTC)
     horizon = now + timedelta(days=60)
 
     # Effective work hours: provider-specific if set, else practice-wide
-    raw_start = provider.work_start_hour if provider and provider.work_start_hour is not None else settings.work_start_hour
-    raw_end = provider.work_end_hour if provider and provider.work_end_hour is not None else settings.work_end_hour
+    raw_start = (
+        provider.work_start_hour
+        if provider and provider.work_start_hour is not None
+        else settings.work_start_hour
+    )
+    raw_end = (
+        provider.work_end_hour
+        if provider and provider.work_end_hour is not None
+        else settings.work_end_hour
+    )
     offset_hours = tz_offset_minutes // 60
     utc_start = max(0, min(23, raw_start + offset_hours))
     utc_end = max(1, min(24, raw_end + offset_hours))
@@ -526,7 +539,7 @@ async def find_next_available(
             )
         )
     )
-    appts = [(a.start_time, a.end_time) for a in appts_result.scalars().all()]
+    appts = [(_as_utc(a.start_time), _as_utc(a.end_time)) for a in appts_result.scalars().all()]
 
     def _has_overlap_local(start: datetime, end: datetime) -> bool:
         return any(a_start < end and a_end + buffer > start for a_start, a_end in appts)
@@ -541,7 +554,9 @@ async def find_next_available(
         candidate += timedelta(minutes=step_mins)
 
     def _next_day_start(dt: datetime) -> datetime:
-        return datetime(dt.year, dt.month, dt.day, utc_start, 0, tzinfo=dt.tzinfo) + timedelta(days=1)
+        return datetime(dt.year, dt.month, dt.day, utc_start, 0, tzinfo=dt.tzinfo) + timedelta(
+            days=1
+        )
 
     for _ in range(60 * 24):
         slot_date = candidate.date()
@@ -576,52 +591,47 @@ async def find_next_available(
 
 
 async def get_dashboard_metrics(session: AsyncSession, days: int = 30) -> dict:
+    """Rolling practice metrics for the dashboard.
+
+    The window is keyed on ``start_time`` -- when the appointment actually
+    happens -- not ``created_at``. Keying on ``created_at`` makes every card read
+    0% against a dataset that was loaded in one batch and then left alone: all
+    the rows share a single creation timestamp, so the window empties the moment
+    that timestamp ages past the cutoff, no matter how much data is present.
+
+    The window has no upper bound. Upcoming scheduled appointments belong in the
+    fill-rate denominator, which is what the card claims to show.
+    """
     cutoff = datetime.now(UTC) - timedelta(days=days)
 
-    total_q = await session.execute(
-        select(func.count()).where(
-            and_(
-                Appointment.created_at >= cutoff,
-                Appointment.status.in_([AppointmentStatus.completed, AppointmentStatus.scheduled]),
-            )
-        )
-    )
-    total = total_q.scalar_one()
+    async def _count(*conditions) -> int:
+        result = await session.execute(select(func.count()).where(and_(*conditions)))
+        return result.scalar_one()
 
-    completed_q = await session.execute(
-        select(func.count()).where(
-            and_(
-                Appointment.created_at >= cutoff,
-                Appointment.status == AppointmentStatus.completed,
-            )
-        )
-    )
-    completed = completed_q.scalar_one()
+    in_window = Appointment.start_time >= cutoff
 
-    booked_q = await session.execute(
-        select(func.count()).where(
-            and_(
-                Appointment.created_at >= cutoff,
-                Appointment.status.in_([AppointmentStatus.completed, AppointmentStatus.no_show]),
-            )
-        )
+    # Fill rate: of the appointments in the window that were not missed, how many
+    # have already been seen. Upcoming ones sit in the denominator until they do.
+    total = await _count(
+        in_window,
+        Appointment.status.in_([AppointmentStatus.completed, AppointmentStatus.scheduled]),
     )
-    booked = booked_q.scalar_one()
+    completed = await _count(in_window, Appointment.status == AppointmentStatus.completed)
 
-    no_show_q = await session.execute(
-        select(func.count()).where(
-            and_(
-                Appointment.created_at >= cutoff,
-                Appointment.status == AppointmentStatus.no_show,
-            )
-        )
+    # No-show rate is measured against resolved appointments only; an appointment
+    # that has not happened yet cannot have been missed.
+    booked = await _count(
+        in_window,
+        Appointment.status.in_([AppointmentStatus.completed, AppointmentStatus.no_show]),
     )
-    no_shows = no_show_q.scalar_one()
+    no_shows = await _count(in_window, Appointment.status == AppointmentStatus.no_show)
 
-    recovered_q = await session.execute(
-        select(func.count()).where(WaitlistEntry.status == WaitlistStatus.booked)
+    # Windowed for consistency with the other three cards, which all sit under a
+    # single "rolling N days" heading.
+    recovered = await _count(
+        WaitlistEntry.status == WaitlistStatus.booked,
+        WaitlistEntry.requested_at >= cutoff,
     )
-    recovered = recovered_q.scalar_one()
 
     return {
         "fill_rate": completed / total if total > 0 else 0.0,

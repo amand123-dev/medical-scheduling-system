@@ -18,6 +18,7 @@ Configure via SCHEDULER_API_URL and SCHEDULER_API_TOKEN.
 from __future__ import annotations
 
 import os
+from datetime import datetime
 from typing import Any
 
 import httpx
@@ -130,17 +131,44 @@ async def get_patient_context(patient_uuid: str, query: str, limit: int = 5) -> 
     return await _get(f"/rag/patients/{patient_uuid}/context", {"q": query, "k": limit})
 
 
+def _tz_offset_minutes(now: datetime | None = None) -> int:
+    """
+    A UTC offset in JavaScript's getTimezoneOffset() convention: minutes,
+    positive west of UTC. The API expects that convention because the browser is
+    its other caller. Defaults to this machine's current offset.
+    """
+    offset = (now or datetime.now().astimezone()).utcoffset()
+    return 0 if offset is None else -int(offset.total_seconds() // 60)
+
+
 @mcp.tool(
     description=(
         "Find the next open appointment slot for a provider and visit type. "
-        "Slot length is derived from the visit type; do not pass a duration."
+        "Slot length is derived from the visit type; do not pass a duration. "
+        "Times are returned in UTC."
     )
 )
-async def find_next_available(provider_id: str, visit_type_id: str) -> dict:
-    """Next bookable slot, honouring work hours, blocks and buffers."""
+async def find_next_available(
+    provider_id: str,
+    visit_type_id: str,
+    tz_offset_minutes: int | None = None,
+) -> dict:
+    """
+    Next bookable slot, honouring work hours, blocks and buffers.
+
+    The practice's working hours are stored as bare hours (8 to 17) and mean
+    local time. Without an offset the API reads them as UTC, which silently
+    shifts the search window off the clinic's actual day -- it returns real
+    empty slots, just ones nobody would ever book. Defaults to this machine's
+    offset, matching what the browser sends.
+    """
     return await _get(
         "/appointments/next-available",
-        {"provider_id": provider_id, "visit_type_id": visit_type_id},
+        {
+            "provider_id": provider_id,
+            "visit_type_id": visit_type_id,
+            "tz_offset": (_tz_offset_minutes() if tz_offset_minutes is None else tz_offset_minutes),
+        },
     )
 
 

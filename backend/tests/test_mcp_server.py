@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import ast
 import re
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 import pytest
@@ -99,3 +100,54 @@ def test_no_pii_terms_in_tool_surface():
     """Tool descriptions must not invite name-based lookup."""
     src = SERVER_PY.read_text().lower()
     assert "hipaa compliant" not in src, 'use "HIPAA-aware", never "HIPAA compliant"'
+
+
+def test_next_available_sends_a_timezone_offset():
+    """
+    Work hours are stored as bare local hours, so /appointments/next-available
+    reads them as UTC unless the caller sends tz_offset. The browser does
+    (frontend/src/api/appointments.ts); the MCP tool silently did not, which
+    shifted the whole search window off the clinic's real day.
+    """
+    tree = ast.parse(SERVER_PY.read_text())
+    for node in ast.walk(tree):
+        if not (isinstance(node, ast.Call) and getattr(node.func, "id", None) == "_get"):
+            continue
+        arg = node.args[0]
+        if not (isinstance(arg, ast.Constant) and arg.value == "/appointments/next-available"):
+            continue
+        keys = [k.value for k in node.args[1].keys if isinstance(k, ast.Constant)]
+        assert "tz_offset" in keys, (
+            "find_next_available must pass tz_offset, or work hours resolve as UTC"
+        )
+        return
+    pytest.fail("no _get('/appointments/next-available') call found in the MCP server")
+
+
+def _load_tz_helper():
+    """
+    Exec just the offset helper. The MCP SDK lives in a separate environment, so
+    the module as a whole is not importable from this suite.
+    """
+    tree = ast.parse(SERVER_PY.read_text())
+    fn = next(
+        n for n in tree.body if isinstance(n, ast.FunctionDef) and n.name == "_tz_offset_minutes"
+    )
+    ns: dict = {}
+    exec(compile(ast.Module([fn], []), "<server>", "exec"), {"datetime": datetime}, ns)  # noqa: S102
+    return ns["_tz_offset_minutes"]
+
+
+@pytest.mark.parametrize(
+    ("hours", "expected"),
+    [(-4, 240), (-8, 480), (0, 0), (1, -60)],  # US Eastern DT, US Pacific, UTC, Berlin
+)
+def test_offset_helper_uses_the_javascript_sign_convention(hours: int, expected: int):
+    """
+    The API expects JS getTimezoneOffset() semantics: minutes, positive west of
+    UTC. Getting the sign backwards is silent -- the search still returns real
+    empty slots, just ones nobody would book -- so pin it.
+    """
+    helper = _load_tz_helper()
+    now = datetime(2026, 8, 26, 12, 0, tzinfo=timezone(timedelta(hours=hours)))
+    assert helper(now) == expected

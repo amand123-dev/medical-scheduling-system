@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { searchProtocols } from "../api/rag";
+import { askProtocols } from "../api/rag";
 
 // Starting points for someone seeing the page for the first time. These map onto
 // the protocol docs in backend/data/protocols/.
@@ -13,6 +13,29 @@ const EXAMPLE_QUERIES = [
 ];
 
 const RESULT_COUNTS = [3, 5, 10];
+
+// Renders inline [1] citations as badges so they read as references rather than
+// stray brackets. The number maps to the passage card of the same number below.
+function AnswerText({ text }: { text: string }) {
+  const parts = text.split(/(\[\d+\])/g);
+  return (
+    <p className="text-sm text-gray-800 whitespace-pre-wrap leading-relaxed">
+      {parts.map((part, i) =>
+        /^\[\d+\]$/.test(part) ? (
+          <span
+            key={i}
+            className="inline-block mx-0.5 px-1.5 rounded bg-blue-100 text-blue-700 text-xs font-medium tabular-nums align-baseline"
+            title={`From passage ${part.slice(1, -1)} below`}
+          >
+            {part.slice(1, -1)}
+          </span>
+        ) : (
+          <span key={i}>{part}</span>
+        ),
+      )}
+    </p>
+  );
+}
 
 function ScoreBadge({ score }: { score: number }) {
   const pct = Math.round(Math.min(Math.max(score, 0), 1) * 100);
@@ -37,8 +60,8 @@ export function ProtocolSearchPage() {
     isFetching,
     error,
   } = useQuery({
-    queryKey: ["protocol-search", trimmed, k],
-    queryFn: () => searchProtocols(trimmed, k),
+    queryKey: ["protocol-ask", trimmed, k],
+    queryFn: () => askProtocols(trimmed, k),
     enabled: trimmed.length >= 2,
     staleTime: 5 * 60_000,
   });
@@ -56,8 +79,9 @@ export function ProtocolSearchPage() {
         <h1 className="text-2xl font-semibold text-gray-900">Protocol Search</h1>
         <p className="text-sm text-gray-500 mt-1">
           Ask a question about how this practice schedules, prepares, and follows up. Answers are
-          retrieved passages from the practice's own protocol documents, each cited back to its
-          source. Protocol documents contain no patient information.
+          answered from the practice's own protocol documents, with every claim cited back to the
+          passage it came from. The model is given only those passages — it is never asked what it
+          knows. Protocol documents contain no patient information.
         </p>
       </div>
 
@@ -127,6 +151,30 @@ export function ProtocolSearchPage() {
       {!isFetching && !error && trimmed.length >= 2 && passages.length === 0 && (
         <div className="bg-white rounded-xl shadow px-6 py-10 text-center text-gray-400 text-sm">
           Nothing in the protocol library matched “{trimmed}”.
+        </div>
+      )}
+
+      {!isFetching && !error && data?.answer && (
+        <section className="bg-white rounded-xl shadow border-l-4 border-blue-500 px-5 py-4 mb-5">
+          <div className="flex items-center gap-2 mb-2">
+            <span aria-hidden="true">💬</span>
+            <h2 className="text-sm font-semibold text-gray-900">Answer</h2>
+            {data.model && (
+              <span className="text-xs text-gray-400 font-mono ml-auto">{data.model}</span>
+            )}
+          </div>
+          <AnswerText text={data.answer} />
+          <p className="text-xs text-gray-400 mt-3">
+            Generated from the {passages.length} passage{passages.length !== 1 ? "s" : ""} below.
+            Numbers refer to those passages — check them before acting on this.
+          </p>
+        </section>
+      )}
+
+      {!isFetching && !error && data && !data.generated && passages.length > 0 && (
+        <div className="bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 text-sm text-gray-600 mb-5">
+          <span aria-hidden="true">ℹ️</span> Answer generation is not configured on this server, so
+          the matching passages are shown on their own.
         </div>
       )}
 
